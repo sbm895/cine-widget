@@ -114,6 +114,8 @@ class CinemaWidget : GlanceAppWidget() {
         expandedCinemas: Set<String>,
         expandedMovies: Set<String>
     ) {
+        val context = androidx.glance.LocalContext.current
+
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -129,7 +131,7 @@ class CinemaWidget : GlanceAppWidget() {
                 Column(
                     modifier = GlanceModifier
                         .defaultWeight()
-                        .clickable(androidx.glance.appwidget.action.actionStartActivity<com.cinewidget.MainActivity>())
+                        .clickable(androidx.glance.action.actionStartActivity(android.content.ComponentName(context, com.cinewidget.MainActivity::class.java)))
                 ) {
                     Text(
                         text = "Cartelera ↗",
@@ -159,7 +161,7 @@ class CinemaWidget : GlanceAppWidget() {
                     ),
                     modifier = GlanceModifier
                         .background(cardBgColor)
-                        .clickable(androidx.glance.appwidget.action.actionStartActivity<com.cinewidget.MainActivity>())
+                        .clickable(androidx.glance.action.actionStartActivity(android.content.ComponentName(context, com.cinewidget.MainActivity::class.java)))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
 
