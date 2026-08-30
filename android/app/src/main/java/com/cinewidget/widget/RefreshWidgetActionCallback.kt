@@ -10,6 +10,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.cinewidget.worker.ScheduleUpdateWorker
 
+import androidx.work.workDataOf
+
 class RefreshWidgetActionCallback : ActionCallback {
     override suspend fun onAction(
         context: Context,
@@ -26,7 +28,9 @@ class RefreshWidgetActionCallback : ActionCallback {
         prefs.edit().putBoolean("is_syncing", true).commit()
         CinemaWidget().updateAll(context)
 
-        val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>().build()
+        val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>()
+            .setInputData(workDataOf("force_refresh" to true))
+            .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             "manual_cinema_schedule_refresh",
             ExistingWorkPolicy.REPLACE,

@@ -129,16 +129,18 @@ fun AppScreen(context: Context) {
             try {
                 val apiService = RetrofitClient.createService(url)
                 val response = withContext(Dispatchers.IO) {
-                    apiService.getUnifiedSchedule()
+                    apiService.getUnifiedSchedule(refresh = true)
                 }
 
                 val json = Gson().toJson(response)
-                prefs.edit().putString("last_schedule_json", json).apply()
+                prefs.edit().putString("last_schedule_json", json).commit()
                 schedule = response
                 isSyncing = false
 
                 // Disparar worker para refrescar el widget también
-                val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>().build()
+                val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>()
+                    .setInputData(workDataOf("force_refresh" to true))
+                    .build()
                 WorkManager.getInstance(context).enqueue(request)
                 Toast.makeText(context, "Cartelera sincronizada exitosamente", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {

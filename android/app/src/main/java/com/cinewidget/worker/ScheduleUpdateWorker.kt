@@ -16,9 +16,10 @@ class ScheduleUpdateWorker(
     override suspend fun doWork(): Result {
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
         val customUrl = prefs.getString("backend_url", null)
+        val forceRefresh = inputData.getBoolean("force_refresh", true)
 
         if (customUrl.isNullOrBlank()) {
-            prefs.edit().putBoolean("is_syncing", false).apply()
+            prefs.edit().putBoolean("is_syncing", false).commit()
             CinemaWidget().updateAll(context)
             return Result.failure()
         }
@@ -26,20 +27,20 @@ class ScheduleUpdateWorker(
         return try {
             val apiService = RetrofitClient.createService(customUrl)
 
-            // Consultar únicamente el endpoint unificado /api/movies
-            val response = apiService.getUnifiedSchedule()
+            // Consultar endpoint unificado con refresh según sea manual o periódico
+            val response = apiService.getUnifiedSchedule(refresh = forceRefresh)
             val json = Gson().toJson(response)
 
             prefs.edit()
                 .putString("last_schedule_json", json)
                 .putBoolean("is_syncing", false)
-                .apply()
+                .commit()
 
             CinemaWidget().updateAll(context)
             Result.success()
         } catch (e: Exception) {
             e.printStackTrace()
-            prefs.edit().putBoolean("is_syncing", false).apply()
+            prefs.edit().putBoolean("is_syncing", false).commit()
             CinemaWidget().updateAll(context)
             Result.retry()
         }

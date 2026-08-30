@@ -61,6 +61,13 @@ class CinemaWidget : GlanceAppWidget() {
         data class EmptyCinemaMessage(val message: String) : CinemaFeedItem
     }
 
+    sealed interface MovieFeedItem {
+        data class MovieHeaderItem(val movieGroup: MovieGroup, val posterUrl: String?) : MovieFeedItem
+        data class CinemaSubHeaderItem(val cinemaName: String, val location: String, val accent: ColorProvider) : MovieFeedItem
+        data class ShowtimesRowItem(val showtimes: List<Showtime>) : MovieFeedItem
+        object DividerItem : MovieFeedItem
+    }
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
         val isSyncing = prefs.getBoolean("is_syncing", false)
@@ -76,12 +83,14 @@ class CinemaWidget : GlanceAppWidget() {
             null
         }
 
-        // Descargar pósters en segundo plano con Coil (60x90px ultraligero para no saturar RemoteViews IPC buffer)
+        // Descargar pósters en segundo plano con Coil (50x75px ultra-ligero para RemoteViews IPC)
         val posterBitmaps = withContext(Dispatchers.IO) {
             val map = mutableMapOf<String, Bitmap>()
             if (schedule != null) {
                 try {
                     val okHttpClient = okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
                         .addInterceptor { chain ->
                             val original = chain.request()
                             val reqBuilder = original.newBuilder()
@@ -96,18 +105,18 @@ class CinemaWidget : GlanceAppWidget() {
                         .okHttpClient(okHttpClient)
                         .build()
 
-                    schedule.cinemas.flatMap { it.movies }.forEach { movie ->
+                    schedule.cinemas.flatMap { it.movies }.take(20).forEach { movie ->
                         val url = movie.coverImage
                         if (!url.isNullOrBlank() && !map.containsKey(url)) {
                             try {
                                 val request = ImageRequest.Builder(context)
                                     .data(url)
-                                    .size(60, 90) // Ultraligero para RemoteViews
+                                    .size(50, 75)
                                     .scale(Scale.FIT)
                                     .allowHardware(false)
                                     .build()
                                 val drawable = imageLoader.execute(request).drawable
-                                drawable?.toBitmap(60, 90)?.let { bitmap ->
+                                drawable?.toBitmap(50, 75)?.let { bitmap ->
                                     map[url] = bitmap
                                 }
                             } catch (e: Exception) {
@@ -279,18 +288,32 @@ class CinemaWidget : GlanceAppWidget() {
                 }
             } else {
                 if (viewMode == "by_movie") {
-                    // Modo Por Película: Agrupar cines y horarios por película (Flat Items)
-                    val groupedMovies = groupScheduleByMovie(schedule.cinemas)
+                    // Modo Por Película: Lista completamente aplanada (Flat Feed)
+                    val flatMovieItems = buildFlatMovieList(schedule.cinemas)
                     LazyColumn(
                         modifier = GlanceModifier.fillMaxSize()
                     ) {
-                        items(groupedMovies) { movieGroup ->
-                            MovieGroupedCard(movieGroup, posterBitmaps)
-                            Spacer(modifier = GlanceModifier.height(8.dp))
+                        items(flatMovieItems) { item ->
+                            when (item) {
+                                is MovieFeedItem.MovieHeaderItem -> {
+                                    MovieHeaderCard(item.movieGroup, posterBitmaps[item.posterUrl])
+                                    Spacer(modifier = GlanceModifier.height(4.dp))
+                                }
+                                is MovieFeedItem.CinemaSubHeaderItem -> {
+                                    CinemaSubHeaderRow(item)
+                                }
+                                is MovieFeedItem.ShowtimesRowItem -> {
+                                    ShowtimesRow(item.showtimes)
+                                    Spacer(modifier = GlanceModifier.height(4.dp))
+                                }
+                                is MovieFeedItem.DividerItem -> {
+                                    Spacer(modifier = GlanceModifier.height(8.dp))
+                                }
+                            }
                         }
                     }
                 } else {
-                    // Modo Por Cine: Lista completamente aplanada para soportar todas las películas
+                    // Modo Por Cine: Lista completamente aplanada (Flat Feed)
                     val flatItems = buildFlatCinemaList(schedule.cinemas)
                     LazyColumn(
                         modifier = GlanceModifier.fillMaxSize()
@@ -341,6 +364,24 @@ class CinemaWidget : GlanceAppWidget() {
                     result.add(CinemaFeedItem.MovieCardItem(movie, brandAccent, movie.coverImage))
                 }
             }
+        }
+        return result
+    }
+
+    private fun buildFlatMovieList(cinemas: List<CinemaSchedule>): List<MovieFeedItem> {
+        val groupedMovies = groupScheduleByMovie(cinemas)
+        val result = mutableListOf<MovieFeedItem>()
+
+        groupedMovies.forEach { group ->
+            result.add(MovieFeedItem.MovieHeaderItem(group, group.coverImage))
+            group.cinemaGroups.forEach { cinemaGroup ->
+                result.add(MovieFeedItem.CinemaSubHeaderItem(cinemaGroup.cinemaName, cinemaGroup.location, cinemaGroup.accent))
+                val chunked = cinemaGroup.showtimes.chunked(2)
+                chunked.forEach { rowShowtimes ->
+                    result.add(MovieFeedItem.ShowtimesRowItem(rowShowtimes))
+                }
+            }
+            result.add(MovieFeedItem.DividerItem)
         }
         return result
     }
@@ -549,27 +590,24 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun MovieGroupedCard(movieGroup: MovieGroup, posterBitmaps: Map<String, Bitmap>) {
+    private fun MovieHeaderCard(movieGroup: MovieGroup, posterBitmap: Bitmap?) {
         val metadata = buildList {
             movieGroup.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
             movieGroup.durationMinutes?.let { add("${it} min") }
             movieGroup.genre?.takeIf { it.isNotBlank() }?.let { add(it) }
         }.joinToString(" · ")
 
-        val posterBitmap = posterBitmaps[movieGroup.coverImage]
-
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .background(cardBgColor)
-                .padding(10.dp),
-            verticalAlignment = Alignment.Top
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Póster a la izquierda (Real o Box sobrio)
             Box(
                 modifier = GlanceModifier
-                    .width(44.dp)
-                    .height(66.dp)
+                    .width(36.dp)
+                    .height(54.dp)
                     .background(chipBgColor)
                     .padding(2.dp),
                 contentAlignment = Alignment.Center
@@ -584,7 +622,7 @@ class CinemaWidget : GlanceAppWidget() {
                     Text(
                         text = "CINE",
                         style = TextStyle(
-                            fontSize = 8.sp,
+                            fontSize = 7.sp,
                             fontWeight = FontWeight.Bold,
                             color = textTertiaryColor,
                             textAlign = TextAlign.Center
@@ -593,85 +631,79 @@ class CinemaWidget : GlanceAppWidget() {
                 }
             }
 
-            Spacer(modifier = GlanceModifier.width(10.dp))
+            Spacer(modifier = GlanceModifier.width(8.dp))
 
-            // Información y Horarios agrupados por Cine a la derecha
             Column(
-                modifier = GlanceModifier
-                    .defaultWeight()
-                    .fillMaxWidth()
+                modifier = GlanceModifier.defaultWeight()
             ) {
                 Text(
                     text = movieGroup.title,
                     style = TextStyle(
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = textPrimaryColor
                     )
                 )
-
                 if (metadata.isNotEmpty()) {
                     Text(
                         text = metadata,
                         style = TextStyle(
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Normal,
+                            fontSize = 9.sp,
                             color = textTertiaryColor
-                        ),
-                        modifier = GlanceModifier.padding(top = 1.dp, bottom = 6.dp)
+                        )
                     )
                 }
+            }
+        }
+    }
 
-                // Cines que tienen esta película
-                movieGroup.cinemaGroups.forEach { cinemaGroup ->
-                    Row(
-                        modifier = GlanceModifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp, bottom = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "•",
-                            style = TextStyle(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = cinemaGroup.accent
-                            ),
-                            modifier = GlanceModifier.padding(end = 4.dp)
-                        )
-                        Text(
-                            text = "${cinemaGroup.cinemaName} (${cinemaGroup.location})",
-                            style = TextStyle(
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textSecondaryColor
-                            )
-                        )
-                    }
+    @Composable
+    private fun CinemaSubHeaderRow(item: MovieFeedItem.CinemaSubHeaderItem) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "•",
+                style = TextStyle(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = item.accent
+                ),
+                modifier = GlanceModifier.padding(end = 4.dp)
+            )
+            Text(
+                text = "${item.cinemaName} (${item.location})",
+                style = TextStyle(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textSecondaryColor
+                )
+            )
+        }
+    }
 
-                    val chunkedShowtimes = cinemaGroup.showtimes.chunked(2)
-                    chunkedShowtimes.forEach { rowItems ->
-                        Row(
-                            modifier = GlanceModifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            rowItems.forEach { showtime ->
-                                Box(
-                                    modifier = GlanceModifier
-                                        .defaultWeight()
-                                        .padding(horizontal = 2.dp)
-                                ) {
-                                    ShowtimeChip(showtime)
-                                }
-                            }
-                            if (rowItems.size == 1) {
-                                Spacer(modifier = GlanceModifier.defaultWeight().padding(horizontal = 2.dp))
-                            }
-                        }
-                    }
+    @Composable
+    private fun ShowtimesRow(showtimes: List<Showtime>) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            showtimes.forEach { showtime ->
+                Box(
+                    modifier = GlanceModifier
+                        .defaultWeight()
+                        .padding(horizontal = 2.dp)
+                ) {
+                    ShowtimeChip(showtime)
                 }
+            }
+            if (showtimes.size == 1) {
+                Spacer(modifier = GlanceModifier.defaultWeight().padding(horizontal = 2.dp))
             }
         }
     }
