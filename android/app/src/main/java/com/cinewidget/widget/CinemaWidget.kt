@@ -76,43 +76,47 @@ class CinemaWidget : GlanceAppWidget() {
             null
         }
 
-        // Descargar pósters en segundo plano con Coil (80x120px optimizado para IPC de RemoteViews)
+        // Descargar pósters en segundo plano con Coil (60x90px ultraligero para no saturar RemoteViews IPC buffer)
         val posterBitmaps = withContext(Dispatchers.IO) {
             val map = mutableMapOf<String, Bitmap>()
             if (schedule != null) {
-                val okHttpClient = okhttp3.OkHttpClient.Builder()
-                    .addInterceptor { chain ->
-                        val original = chain.request()
-                        val reqBuilder = original.newBuilder()
-                        if (original.url.host.contains("moviexchange.com")) {
-                            reqBuilder.header("Referer", "https://www.cinecolombia.com/")
-                        }
-                        chain.proceed(reqBuilder.build())
-                    }
-                    .build()
-
-                val imageLoader = ImageLoader.Builder(context)
-                    .okHttpClient(okHttpClient)
-                    .build()
-
-                schedule.cinemas.flatMap { it.movies }.forEach { movie ->
-                    val url = movie.coverImage
-                    if (!url.isNullOrBlank() && !map.containsKey(url)) {
-                        try {
-                            val request = ImageRequest.Builder(context)
-                                .data(url)
-                                .size(80, 120) // Redimensionado ligero para que quepan 30+ imágenes en el IPC buffer
-                                .scale(Scale.FIT)
-                                .allowHardware(false)
-                                .build()
-                            val drawable = imageLoader.execute(request).drawable
-                            drawable?.toBitmap()?.let { bitmap ->
-                                map[url] = bitmap
+                try {
+                    val okHttpClient = okhttp3.OkHttpClient.Builder()
+                        .addInterceptor { chain ->
+                            val original = chain.request()
+                            val reqBuilder = original.newBuilder()
+                            if (original.url.host.contains("moviexchange.com")) {
+                                reqBuilder.header("Referer", "https://www.cinecolombia.com/")
                             }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                            chain.proceed(reqBuilder.build())
+                        }
+                        .build()
+
+                    val imageLoader = ImageLoader.Builder(context)
+                        .okHttpClient(okHttpClient)
+                        .build()
+
+                    schedule.cinemas.flatMap { it.movies }.forEach { movie ->
+                        val url = movie.coverImage
+                        if (!url.isNullOrBlank() && !map.containsKey(url)) {
+                            try {
+                                val request = ImageRequest.Builder(context)
+                                    .data(url)
+                                    .size(60, 90) // Ultraligero para RemoteViews
+                                    .scale(Scale.FIT)
+                                    .allowHardware(false)
+                                    .build()
+                                val drawable = imageLoader.execute(request).drawable
+                                drawable?.toBitmap(60, 90)?.let { bitmap ->
+                                    map[url] = bitmap
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
             map
