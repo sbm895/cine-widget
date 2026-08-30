@@ -42,6 +42,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -104,7 +105,7 @@ fun AppScreen(context: Context) {
 
     var isSyncing by remember { mutableStateOf(false) }
     var syncError by remember { mutableStateOf<String?>(null) }
-    var viewMode by remember { mutableStateOf("by_cinema") } // "by_cinema" | "by_movie"
+    var viewMode by remember { mutableStateOf("by_cinema") } // "by_cinema" | "by_movie" | "upcoming"
 
     var schedule by remember {
         mutableStateOf<UnifiedScheduleResponse?>(
@@ -407,6 +408,32 @@ fun AppScreen(context: Context) {
                             )
                         }
                     }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (viewMode == "upcoming") ActiveTabBg else ChipBg)
+                            .clickable { viewMode = "upcoming" }
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.AccessTime,
+                                contentDescription = null,
+                                tint = if (viewMode == "upcoming") CinecoAccent else TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Próximas",
+                                fontSize = 12.sp,
+                                fontWeight = if (viewMode == "upcoming") FontWeight.Bold else FontWeight.Normal,
+                                color = if (viewMode == "upcoming") TextPrimary else TextSecondary
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -446,7 +473,9 @@ fun AppScreen(context: Context) {
                     }
                 } else {
                     val currentCinemas = schedule!!.cinemas
-                    if (viewMode == "by_movie") {
+                    if (viewMode == "upcoming") {
+                        AppUpcomingList(schedule!!, context)
+                    } else if (viewMode == "by_movie") {
                         var expandedMoviesApp by remember { mutableStateOf(setOf<String>()) }
                         val grouped = groupScheduleByMovieApp(currentCinemas).take(18)
 
@@ -961,3 +990,137 @@ private fun AppShowtimeChip(showtime: Showtime, context: Context) {
     }
 }
 
+// ─── Pestaña "Próximas Funciones" ─────────────────────────────────────────────
+
+private data class AppUpcomingItem(
+    val movieTitle: String,
+    val cinemaName: String,
+    val cinemaLocation: String,
+    val accent: Color,
+    val showtime: Showtime,
+    val minutesOfDay: Int
+)
+
+private fun parseTimeToMinutesApp(timeStr: String): Int {
+    val clean = timeStr.trim().lowercase()
+    val isPm = clean.contains("pm") || clean.contains("p. m.") || clean.contains("p.m.")
+    val isAm = clean.contains("am") || clean.contains("a. m.") || clean.contains("a.m.")
+    val digitsOnly = clean.replace(Regex("[^0-9:]"), "")
+    val parts = digitsOnly.split(":")
+    if (parts.isEmpty()) return 0
+    var hours = parts.getOrNull(0)?.toIntOrNull() ?: 0
+    val minutes = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    if (isPm && hours < 12) hours += 12
+    if (isAm && hours == 12) hours = 0
+    return (hours * 60) + minutes
+}
+
+@Composable
+private fun AppUpcomingList(schedule: UnifiedScheduleResponse, context: Context) {
+    val nowCalendar = Calendar.getInstance()
+    val currentMinutes = (nowCalendar.get(Calendar.HOUR_OF_DAY) * 60) + nowCalendar.get(Calendar.MINUTE)
+    val thresholdMinutes = (currentMinutes - 15).coerceAtLeast(0)
+
+    val allItems = schedule.cinemas.flatMap { cinema ->
+        val accent = getCinemaAccentApp(cinema.cinemaName, cinema.cinemaId)
+        cinema.movies.flatMap { movie ->
+            movie.showtimes.map { showtime ->
+                AppUpcomingItem(
+                    movieTitle = movie.title,
+                    cinemaName = cinema.cinemaName,
+                    cinemaLocation = cinema.location,
+                    accent = accent,
+                    showtime = showtime,
+                    minutesOfDay = parseTimeToMinutesApp(showtime.time)
+                )
+            }
+        }
+    }
+
+    val futureItems = allItems
+        .filter { it.minutesOfDay >= thresholdMinutes }
+        .sortedBy { it.minutesOfDay }
+
+    val itemsToShow = if (futureItems.isNotEmpty()) futureItems else allItems.sortedBy { it.minutesOfDay }
+
+    if (itemsToShow.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Sin funciones disponibles.", color = TextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
+        }
+        return
+    }
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(itemsToShow) { item ->
+            AppUpcomingRow(item, context)
+            Spacer(modifier = Modifier.height(5.dp))
+        }
+    }
+}
+
+@Composable
+private fun AppUpcomingRow(item: AppUpcomingItem, context: Context) {
+    val showtime = item.showtime
+    val availabilityText = when {
+        showtime.seatsAvailable == null -> "Boletos"
+        showtime.seatsAvailable > 0 -> "${showtime.seatsAvailable} disp."
+        else -> "Agotado"
+    }
+    val screenInfo = (showtime.screenTypes + listOfNotNull(showtime.language))
+        .filter { it.isNotBlank() }.joinToString(" ")
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(CardBg)
+            .clickable {
+                if (!showtime.bookingUrl.isNullOrBlank()) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(showtime.bookingUrl))
+                    context.startActivity(intent)
+                }
+            }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Hora grande
+        Text(
+            text = showtime.time,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary,
+            modifier = Modifier.width(52.dp)
+        )
+
+        // Barra de color del cine
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(32.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(item.accent)
+        )
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Info película + cine
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.movieTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(
+                text = "${item.cinemaName} · ${item.cinemaLocation}" + if (screenInfo.isNotBlank()) " · $screenInfo" else "",
+                fontSize = 10.sp,
+                color = TextTertiary
+            )
+        }
+
+        // Badge disponibilidad
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(ChipBg)
+                .padding(horizontal = 6.dp, vertical = 3.dp)
+        ) {
+            Text(availabilityText, fontSize = 9.sp, color = TextSecondary)
+        }
+    }
+}

@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -15,22 +17,24 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
-import androidx.glance.appwidget.updateAll
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.layout.*
+import androidx.glance.state.GlanceStateDefinition
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.cinewidget.MainActivity
-import com.cinewidget.data.model.CinemaSchedule
 import com.cinewidget.data.model.Movie
 import com.cinewidget.data.model.Showtime
 import com.cinewidget.data.model.UnifiedScheduleResponse
@@ -39,6 +43,11 @@ import com.google.gson.Gson
 class SingleCinemaWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Exact
+    override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
+
+    companion object {
+        val SELECTED_INDEX_KEY = intPreferencesKey("single_cinema_index")
+    }
 
     private val widgetBgColor = ColorProvider(Color(0xFF1E1A1D))
     private val cardBgColor = ColorProvider(Color(0xFF282328))
@@ -51,18 +60,15 @@ class SingleCinemaWidget : GlanceAppWidget() {
     private val royalAccent = ColorProvider(Color(0xFFE5A00D))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val currentState = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
+        val selectedIndex = currentState[SELECTED_INDEX_KEY] ?: 0
+
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
-        val selectedIndex = prefs.getInt("single_cinema_index", 0)
         val cachedJson = prefs.getString("last_schedule_json", null)
         val schedule = if (cachedJson != null) {
-            try {
-                Gson().fromJson(cachedJson, UnifiedScheduleResponse::class.java)
-            } catch (e: Exception) {
-                null
-            }
-        } else {
-            null
-        }
+            try { Gson().fromJson(cachedJson, UnifiedScheduleResponse::class.java) }
+            catch (e: Exception) { null }
+        } else { null }
 
         provideContent {
             GlanceTheme {
@@ -72,10 +78,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun SingleCinemaContent(
-        schedule: UnifiedScheduleResponse?,
-        selectedIndex: Int
-    ) {
+    private fun SingleCinemaContent(schedule: UnifiedScheduleResponse?, selectedIndex: Int) {
         val context = LocalContext.current
 
         Column(
@@ -108,34 +111,27 @@ class SingleCinemaWidget : GlanceAppWidget() {
             val currentCinema = cinemas[validIndex]
             val brandAccent = getCinemaAccent(currentCinema.cinemaName, currentCinema.cinemaId)
 
-            // Selector de Cine Paginado: [ ◀ ] [ Cine Colombia Buenavista ] [ ▶ ]
+            // Selector de Cine: [ ◀ ] [ Nombre del Cine ] [ ▶ ]
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
                     .background(cardBgColor)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Botón Anterior
+                val prevIndex = if (validIndex > 0) validIndex - 1 else cinemas.size - 1
+                val nextIndex = if (validIndex < cinemas.size - 1) validIndex + 1 else 0
+
                 Text(
-                    text = " ◀ ",
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = brandAccent
-                    ),
+                    text = " \u25C4 ",
+                    style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = brandAccent),
                     modifier = GlanceModifier
-                        .clickable(
-                            actionRunCallback<SwitchCinemaActionCallback>(
-                                SwitchCinemaActionCallback.createParameters(
-                                    if (validIndex > 0) validIndex - 1 else cinemas.size - 1
-                                )
-                            )
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .clickable(actionRunCallback<SwitchCinemaActionCallback>(
+                            SwitchCinemaActionCallback.createParameters(prevIndex)
+                        ))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
 
-                // Nombre de Cine Central (Abre la app al tocarlo)
                 Column(
                     modifier = GlanceModifier
                         .defaultWeight()
@@ -152,50 +148,34 @@ class SingleCinemaWidget : GlanceAppWidget() {
                         )
                     )
                     Text(
-                        text = "${currentCinema.location} · ${currentCinema.movies.size} pelis",
-                        style = TextStyle(
-                            fontSize = 10.sp,
-                            color = textTertiaryColor,
-                            textAlign = TextAlign.Center
-                        )
+                        text = "${currentCinema.location} \u00B7 ${currentCinema.movies.size} pelis",
+                        style = TextStyle(fontSize = 10.sp, color = textTertiaryColor, textAlign = TextAlign.Center)
                     )
                 }
 
-                // Botón Siguiente
                 Text(
-                    text = " ▶ ",
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = brandAccent
-                    ),
+                    text = " \u25BA ",
+                    style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = brandAccent),
                     modifier = GlanceModifier
-                        .clickable(
-                            actionRunCallback<SwitchCinemaActionCallback>(
-                                SwitchCinemaActionCallback.createParameters(
-                                    if (validIndex < cinemas.size - 1) validIndex + 1 else 0
-                                )
-                            )
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .clickable(actionRunCallback<SwitchCinemaActionCallback>(
+                            SwitchCinemaActionCallback.createParameters(nextIndex)
+                        ))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
 
             Spacer(modifier = GlanceModifier.height(8.dp))
 
-            // Lista plana de películas optimizada para el cine seleccionado (tope 14 películas)
             if (currentCinema.movies.isEmpty()) {
-                Box(
-                    modifier = GlanceModifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = currentCinema.errorMessage ?: "Sin funciones disponibles.",
                         style = TextStyle(fontSize = 11.sp, color = textSecondaryColor)
                     )
                 }
             } else {
-                val limitedMovies = currentCinema.movies.take(14)
+                // Tope de 8 películas para mantener el payload Binder controlado
+                val limitedMovies = currentCinema.movies.take(8)
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                     items(limitedMovies) { movie ->
                         MovieRow(movie, brandAccent)
@@ -211,8 +191,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
         val metadata = buildList {
             movie.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
             movie.durationMinutes?.let { add("${it} min") }
-            movie.genre?.takeIf { it.isNotBlank() }?.let { add(it) }
-        }.joinToString(" · ")
+        }.joinToString(" \u00B7 ")
 
         Row(
             modifier = GlanceModifier
@@ -221,23 +200,13 @@ class SingleCinemaWidget : GlanceAppWidget() {
                 .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.Top
         ) {
-            Box(
-                modifier = GlanceModifier
-                    .width(3.dp)
-                    .height(30.dp)
-                    .background(brandAccent)
-            ) {}
-
+            Box(modifier = GlanceModifier.width(3.dp).height(30.dp).background(brandAccent)) {}
             Spacer(modifier = GlanceModifier.width(8.dp))
 
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(
                     text = movie.title,
-                    style = TextStyle(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimaryColor
-                    )
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimaryColor)
                 )
                 if (metadata.isNotEmpty()) {
                     Text(
@@ -247,18 +216,14 @@ class SingleCinemaWidget : GlanceAppWidget() {
                     )
                 }
 
-                val chunked = movie.showtimes.chunked(2)
+                val chunked = movie.showtimes.take(4).chunked(2)
                 chunked.forEach { rowItems ->
                     Row(
                         modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         rowItems.forEach { showtime ->
-                            Box(
-                                modifier = GlanceModifier
-                                    .defaultWeight()
-                                    .padding(horizontal = 2.dp)
-                            ) {
+                            Box(modifier = GlanceModifier.defaultWeight().padding(horizontal = 2.dp)) {
                                 SingleShowtimeChip(showtime)
                             }
                         }
@@ -278,27 +243,20 @@ class SingleCinemaWidget : GlanceAppWidget() {
             showtime.seatsAvailable > 0 -> "${showtime.seatsAvailable} disp."
             else -> "Agotado"
         }
-
         val screenInfo = (showtime.screenTypes + listOfNotNull(showtime.language))
-            .filter { it.isNotBlank() }
-            .joinToString(" ")
-
+            .filter { it.isNotBlank() }.joinToString(" ")
         val chipText = buildString {
             append(showtime.time)
             if (screenInfo.isNotEmpty()) append(" $screenInfo")
-            append(" · $availabilityText")
+            append(" \u00B7 $availabilityText")
         }
-
         val actionModifier = if (!showtime.bookingUrl.isNullOrBlank()) {
-            GlanceModifier.clickable(
-                actionRunCallback<OpenBookingUrlActionCallback>(
-                    OpenBookingUrlActionCallback.createParameters(showtime.bookingUrl)
-                )
-            )
+            GlanceModifier.clickable(actionRunCallback<OpenBookingUrlActionCallback>(
+                OpenBookingUrlActionCallback.createParameters(showtime.bookingUrl)
+            ))
         } else {
             GlanceModifier.clickable(actionRunCallback<RefreshWidgetActionCallback>())
         }
-
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
@@ -310,12 +268,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
         ) {
             Text(
                 text = chipText,
-                style = TextStyle(
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = textPrimaryColor,
-                    textAlign = TextAlign.Center
-                )
+                style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Medium, color = textPrimaryColor, textAlign = TextAlign.Center)
             )
         }
     }
@@ -332,22 +285,18 @@ class SingleCinemaWidget : GlanceAppWidget() {
 }
 
 class SwitchCinemaActionCallback : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
-    ) {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val targetIndex = parameters[TargetIndexKey] ?: 0
-        val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putInt("single_cinema_index", targetIndex).commit()
-        SingleCinemaWidget().updateAll(context)
+        updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+            prefs.toMutablePreferences().apply {
+                this[SingleCinemaWidget.SELECTED_INDEX_KEY] = targetIndex
+            }
+        }
+        SingleCinemaWidget().update(context, glanceId)
     }
 
     companion object {
         val TargetIndexKey = ActionParameters.Key<Int>("target_cinema_index")
-
-        fun createParameters(index: Int): ActionParameters {
-            return actionParametersOf(TargetIndexKey to index)
-        }
+        fun createParameters(index: Int): ActionParameters = actionParametersOf(TargetIndexKey to index)
     }
 }
