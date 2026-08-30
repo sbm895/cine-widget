@@ -32,6 +32,7 @@ class CinemaWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
+        val isSyncing = prefs.getBoolean("is_syncing", false)
         val cachedJson = prefs.getString("last_schedule_json", null)
         val schedule = if (cachedJson != null) {
             try {
@@ -45,13 +46,13 @@ class CinemaWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                WidgetContent(schedule)
+                WidgetContent(schedule, isSyncing)
             }
         }
     }
 
     @Composable
-    private fun WidgetContent(schedule: UnifiedScheduleResponse?) {
+    private fun WidgetContent(schedule: UnifiedScheduleResponse?, isSyncing: Boolean) {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -87,23 +88,38 @@ class CinemaWidget : GlanceAppWidget() {
 
                 Spacer(modifier = GlanceModifier.width(8.dp))
 
-                Text(
-                    text = "Actualizar",
-                    style = TextStyle(
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GlanceTheme.colors.primary
-                    ),
-                    modifier = GlanceModifier
+                val refreshText = if (isSyncing) "Sincronizando..." else "Actualizar"
+                val refreshModifier = if (!isSyncing) {
+                    GlanceModifier
                         .background(GlanceTheme.colors.primaryContainer)
                         .clickable(actionRunCallback<RefreshWidgetActionCallback>())
                         .padding(horizontal = 6.dp, vertical = 2.dp)
+                } else {
+                    GlanceModifier
+                        .background(GlanceTheme.colors.surfaceVariant)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                }
+
+                Text(
+                    text = refreshText,
+                    style = TextStyle(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSyncing) GlanceTheme.colors.secondary else GlanceTheme.colors.primary
+                    ),
+                    modifier = refreshModifier
                 )
             }
 
             Spacer(modifier = GlanceModifier.height(6.dp))
 
             if (schedule == null || schedule.cinemas.isEmpty()) {
+                val emptyMessage = if (isSyncing) {
+                    "Sincronizando cartelera...\nPor favor espera unos segundos."
+                } else {
+                    "Sin datos disponibles.\nToca aquí para sincronizar."
+                }
+
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
@@ -111,7 +127,7 @@ class CinemaWidget : GlanceAppWidget() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Sin datos disponibles.\nToca aquí para sincronizar.",
+                        text = emptyMessage,
                         style = TextStyle(
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
