@@ -12,13 +12,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -154,15 +157,23 @@ fun AppScreen(context: Context) {
 
     var showSettingsDialog by remember { mutableStateOf(false) }
 
-    // Diálogo Modal de Configuración
+    // Diálogo Modal de Configuración (Limpio y profesional)
     if (showSettingsDialog) {
         var tempUrl by remember { mutableStateOf(backendUrl) }
 
         AlertDialog(
             onDismissRequest = { showSettingsDialog = false },
             containerColor = CardBg,
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = "Configuración",
+                    tint = CinecoAccent,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
             title = {
-                Text("⚙️ Configuración de API", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Configuración de API", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             },
             text = {
                 Column {
@@ -178,6 +189,9 @@ fun AppScreen(context: Context) {
                         placeholder = { Text("https://tu-api.a.run.app") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Link, contentDescription = null, tint = TextTertiary)
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary,
@@ -199,6 +213,8 @@ fun AppScreen(context: Context) {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = CinecoAccent)
                 ) {
+                    Icon(Icons.Rounded.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text("Guardar y Sincronizar")
                 }
             },
@@ -215,47 +231,57 @@ fun AppScreen(context: Context) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Barra Superior Principal: Título, Estado y Botón de Ajustes
+        // Barra Superior Principal: Título, Estado y Botones de Acción
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "🎬 Cartelera de Cine",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Bold
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Theaters,
+                    contentDescription = null,
+                    tint = CinecoAccent,
+                    modifier = Modifier.size(28.dp)
                 )
-                Text(
-                    text = schedule?.date ?: "Barranquilla y Soledad",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Cartelera de Cine",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = schedule?.date ?: "Barranquilla y Soledad",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Botón de sincronización rápida
-                Box(
+                IconButton(
+                    onClick = { if (!isSyncing) doSync(forceRefresh = false) },
+                    enabled = !isSyncing,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSyncing) ChipBg else CardBg)
-                        .clickable(enabled = !isSyncing) { doSync(forceRefresh = false) }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .background(CardBg)
+                        .size(38.dp)
                 ) {
                     if (isSyncing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(16.dp),
                             color = CinecoAccent,
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text(
-                            text = "🔄 Actualizar",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextPrimary
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Actualizar",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -268,21 +294,41 @@ fun AppScreen(context: Context) {
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(CardBg)
-                        .size(36.dp)
+                        .size(38.dp)
                 ) {
-                    Text("⚙️", fontSize = 16.sp)
+                    Icon(
+                        imageVector = Icons.Rounded.Tune,
+                        contentDescription = "Configuración",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
 
         if (syncError != null) {
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "⚠️ $syncError",
-                color = CinemarkAccent,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF3B1E22))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ErrorOutline,
+                    contentDescription = null,
+                    tint = CinemarkAccent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = syncError ?: "",
+                    color = CinemarkAccent,
+                    fontSize = 11.sp
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -315,15 +361,24 @@ fun AppScreen(context: Context) {
                             .clip(RoundedCornerShape(6.dp))
                             .background(if (viewMode == "by_cinema") ActiveTabBg else ChipBg)
                             .clickable { viewMode = "by_cinema" }
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 7.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Por Cine",
-                            fontSize = 12.sp,
-                            fontWeight = if (viewMode == "by_cinema") FontWeight.Bold else FontWeight.Normal,
-                            color = if (viewMode == "by_cinema") TextPrimary else TextSecondary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.LocationOn,
+                                contentDescription = null,
+                                tint = if (viewMode == "by_cinema") CinecoAccent else TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Por Cine",
+                                fontSize = 12.sp,
+                                fontWeight = if (viewMode == "by_cinema") FontWeight.Bold else FontWeight.Normal,
+                                color = if (viewMode == "by_cinema") TextPrimary else TextSecondary
+                            )
+                        }
                     }
 
                     Box(
@@ -332,15 +387,24 @@ fun AppScreen(context: Context) {
                             .clip(RoundedCornerShape(6.dp))
                             .background(if (viewMode == "by_movie") ActiveTabBg else ChipBg)
                             .clickable { viewMode = "by_movie" }
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 7.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Por Película",
-                            fontSize = 12.sp,
-                            fontWeight = if (viewMode == "by_movie") FontWeight.Bold else FontWeight.Normal,
-                            color = if (viewMode == "by_movie") TextPrimary else TextSecondary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.Movie,
+                                contentDescription = null,
+                                tint = if (viewMode == "by_movie") CinecoAccent else TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Por Película",
+                                fontSize = 12.sp,
+                                fontWeight = if (viewMode == "by_movie") FontWeight.Bold else FontWeight.Normal,
+                                color = if (viewMode == "by_movie") TextPrimary else TextSecondary
+                            )
+                        }
                     }
                 }
 
@@ -363,12 +427,21 @@ fun AppScreen(context: Context) {
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Ingresa la URL y toca Sincronizar para cargar la cartelera.",
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Rounded.CloudOff,
+                                contentDescription = null,
+                                tint = TextTertiary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Sin cartelera cargada.\nConfigura la URL de tu API para sincronizar.",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 } else {
                     val currentCinemas = schedule!!.cinemas
@@ -397,12 +470,14 @@ fun AppScreen(context: Context) {
                                             .padding(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = if (isExpanded) "▼  " else "▶  ",
-                                            color = CinecoAccent,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
+                                        Icon(
+                                            imageVector = if (isExpanded) Icons.Rounded.ExpandMore else Icons.Rounded.ChevronRight,
+                                            contentDescription = null,
+                                            tint = CinecoAccent,
+                                            modifier = Modifier.size(20.dp)
                                         )
+
+                                        Spacer(modifier = Modifier.width(4.dp))
 
                                         Box(
                                             modifier = Modifier
@@ -470,8 +545,13 @@ fun AppScreen(context: Context) {
                                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text("•", color = cinemaGroup.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .clip(RoundedCornerShape(2.dp))
+                                                        .background(cinemaGroup.accent)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Text("${cinemaGroup.cinemaName} (${cinemaGroup.location})", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
@@ -530,12 +610,13 @@ fun AppScreen(context: Context) {
                                             .padding(horizontal = 10.dp, vertical = 7.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = if (isExpanded) "▼  " else "▶  ",
-                                            color = accent,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
+                                        Icon(
+                                            imageVector = if (isExpanded) Icons.Rounded.ExpandMore else Icons.Rounded.ChevronRight,
+                                            contentDescription = null,
+                                            tint = accent,
+                                            modifier = Modifier.size(18.dp)
                                         )
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = cinema.cinemaName.uppercase(),
                                             color = TextPrimary,
@@ -586,7 +667,7 @@ fun AppScreen(context: Context) {
                                             if (totalRendered >= maxLimit) {
                                                 item {
                                                     Text(
-                                                        text = "⚡ Mostrando 18 películas activas. Colapsa un cine para explorar los demás con fluidez.",
+                                                        text = "Mostrando 18 películas activas. Colapsa un cine para explorar los demás.",
                                                         color = TextTertiary,
                                                         fontSize = 10.sp,
                                                         textAlign = TextAlign.Center,
