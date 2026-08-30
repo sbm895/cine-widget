@@ -360,11 +360,132 @@ fun AppScreen(context: Context) {
                 } else {
                     val currentCinemas = schedule!!.cinemas
                     if (viewMode == "by_movie") {
+                        var expandedMoviesApp by remember { mutableStateOf(setOf<String>()) }
                         val grouped = groupScheduleByMovieApp(currentCinemas).take(18)
+
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(grouped) { movieGroup ->
-                                AppMovieGroupCard(movieGroup, context)
-                                Spacer(modifier = Modifier.height(8.dp))
+                            grouped.forEach { movieGroup ->
+                                val normalizedKey = movieGroup.title.trim().lowercase().replace(".", "").replace(":", "")
+                                val isExpanded = expandedMoviesApp.contains(normalizedKey)
+
+                                item {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(CardBg)
+                                            .clickable {
+                                                expandedMoviesApp = if (isExpanded) {
+                                                    expandedMoviesApp - normalizedKey
+                                                } else {
+                                                    expandedMoviesApp + normalizedKey
+                                                }
+                                            }
+                                            .padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (isExpanded) "▼  " else "▶  ",
+                                            color = CinecoAccent,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+
+                                        Box(
+                                            modifier = Modifier
+                                                .width(36.dp)
+                                                .height(54.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(ChipBg),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (!movieGroup.coverImage.isNullOrBlank()) {
+                                                coil.compose.AsyncImage(
+                                                    model = movieGroup.coverImage,
+                                                    contentDescription = movieGroup.title,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                )
+                                            } else {
+                                                Text("CINE", color = TextTertiary, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = movieGroup.title,
+                                                color = TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            val metadata = buildList {
+                                                movieGroup.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
+                                                movieGroup.durationMinutes?.let { add("${it} min") }
+                                                movieGroup.genre?.takeIf { it.isNotBlank() }?.let { add(it) }
+                                            }.joinToString(" · ")
+                                            if (metadata.isNotEmpty()) {
+                                                Text(text = metadata, color = TextTertiary, fontSize = 9.sp)
+                                            }
+                                        }
+
+                                        if (movieGroup.cinemaGroups.isNotEmpty()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(ChipBg)
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${movieGroup.cinemaGroups.size} cines",
+                                                    color = TextTertiary,
+                                                    fontSize = 9.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+
+                                if (isExpanded) {
+                                    movieGroup.cinemaGroups.forEach { cinemaGroup ->
+                                        item {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("•", color = cinemaGroup.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("${cinemaGroup.cinemaName} (${cinemaGroup.location})", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+
+                                        item {
+                                            val chunked = cinemaGroup.showtimes.chunked(2)
+                                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)) {
+                                                chunked.forEach { rowShowtimes ->
+                                                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+                                                        rowShowtimes.forEach { showtime ->
+                                                            Box(modifier = Modifier.weight(1f).padding(horizontal = 2.dp)) {
+                                                                AppShowtimeChip(showtime, context)
+                                                            }
+                                                        }
+                                                        if (rowShowtimes.size == 1) {
+                                                            Spacer(modifier = Modifier.weight(1f).padding(horizontal = 2.dp))
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                        }
+                                    }
+                                    item {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                    }
+                                }
                             }
                         }
                     } else {

@@ -70,7 +70,12 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     sealed interface MovieFeedItem {
-        data class MovieHeaderItem(val movieGroup: MovieGroup, val posterUrl: String?) : MovieFeedItem
+        data class MovieHeaderItem(
+            val movieGroup: MovieGroup,
+            val posterUrl: String?,
+            val isExpanded: Boolean,
+            val cinemaCount: Int
+        ) : MovieFeedItem
         data class CinemaSubHeaderItem(val cinemaName: String, val location: String, val accent: ColorProvider) : MovieFeedItem
         data class ShowtimesRowItem(val showtimes: List<Showtime>) : MovieFeedItem
         object DividerItem : MovieFeedItem
@@ -82,6 +87,7 @@ class CinemaWidget : GlanceAppWidget() {
         val isSyncing = prefs.getBoolean("is_syncing", false)
         val viewMode = prefs.getString("view_mode", "by_cinema") ?: "by_cinema" // "by_cinema" | "by_movie"
         val expandedCinemas = prefs.getStringSet("expanded_cinemas", null) ?: setOf("cinemark-gran-plaza-del-sol")
+        val expandedMovies = prefs.getStringSet("expanded_movies", null) ?: emptySet()
         val cachedJson = prefs.getString("last_schedule_json", null)
         val schedule = if (cachedJson != null) {
             try {
@@ -108,7 +114,7 @@ class CinemaWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                WidgetContent(schedule, isSyncing, viewMode, expandedCinemas, posterBitmaps)
+                WidgetContent(schedule, isSyncing, viewMode, expandedCinemas, expandedMovies, posterBitmaps)
             }
         }
     }
@@ -119,6 +125,7 @@ class CinemaWidget : GlanceAppWidget() {
         isSyncing: Boolean,
         viewMode: String,
         expandedCinemas: Set<String>,
+        expandedMovies: Set<String>,
         posterBitmaps: Map<String, Bitmap>
     ) {
         Column(
@@ -264,15 +271,15 @@ class CinemaWidget : GlanceAppWidget() {
                 }
             } else {
                 if (viewMode == "by_movie") {
-                    // Modo Por Película: Lista completamente aplanada con tope de 18 películas
-                    val flatMovieItems = buildFlatMovieList(schedule.cinemas)
+                    // Modo Por Película: Acordeones interactivos por película con tope de 18
+                    val flatMovieItems = buildFlatMovieList(schedule.cinemas, expandedMovies)
                     LazyColumn(
                         modifier = GlanceModifier.fillMaxSize()
                     ) {
                         items(flatMovieItems) { item ->
                             when (item) {
                                 is MovieFeedItem.MovieHeaderItem -> {
-                                    MovieHeaderCard(item.movieGroup, posterBitmaps[item.posterUrl])
+                                    MovieHeaderCard(item.movieGroup, item.isExpanded, item.cinemaCount, posterBitmaps[item.posterUrl])
                                     Spacer(modifier = GlanceModifier.height(4.dp))
                                 }
                                 is MovieFeedItem.CinemaSubHeaderItem -> {
@@ -398,13 +405,19 @@ class CinemaWidget : GlanceAppWidget() {
         return result
     }
 
-    private fun buildFlatMovieList(cinemas: List<CinemaSchedule>): List<MovieFeedItem> {
+    private fun buildFlatMovieList(
+        cinemas: List<CinemaSchedule>,
+        expandedMovies: Set<String>
+    ): List<MovieFeedItem> {
         val groupedMovies = groupScheduleByMovie(cinemas)
         val result = mutableListOf<MovieFeedItem>()
         val maxMoviesLimit = 18
         var count = 0
 
         for (group in groupedMovies) {
+            val normalizedKey = group.title.trim().lowercase().replace(".", "").replace(":", "")
+            val isExpanded = expandedMovies.contains(normalizedKey)
+
             if (count >= maxMoviesLimit) {
                 result.add(
                     MovieFeedItem.SafetyLimitMessage(
@@ -413,14 +426,26 @@ class CinemaWidget : GlanceAppWidget() {
                 )
                 break
             }
-            result.add(MovieFeedItem.MovieHeaderItem(group, group.coverImage))
-            group.cinemaGroups.forEach { cinemaGroup ->
-                result.add(MovieFeedItem.CinemaSubHeaderItem(cinemaGroup.cinemaName, cinemaGroup.location, cinemaGroup.accent))
-                val chunked = cinemaGroup.showtimes.chunked(2)
-                chunked.forEach { rowShowtimes ->
-                    result.add(MovieFeedItem.ShowtimesRowItem(rowShowtimes))
+
+            result.add(
+                MovieFeedItem.MovieHeaderItem(
+                    movieGroup = group,
+                    posterUrl = group.coverImage,
+                    isExpanded = isExpanded,
+                    cinemaCount = group.cinemaGroups.size
+                )
+            )
+
+            if (isExpanded) {
+                group.cinemaGroups.forEach { cinemaGroup ->
+                    result.add(MovieFeedItem.CinemaSubHeaderItem(cinemaGroup.cinemaName, cinemaGroup.location, cinemaGroup.accent))
+                    val chunked = cinemaGroup.showtimes.chunked(2)
+                    chunked.forEach { rowShowtimes ->
+                        result.add(MovieFeedItem.ShowtimesRowItem(rowShowtimes))
+                    }
                 }
             }
+
             result.add(MovieFeedItem.DividerItem)
             count++
         }
@@ -653,20 +678,42 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun MovieHeaderCard(movieGroup: MovieGroup, posterBitmap: Bitmap?) {
+    private fun MovieHeaderCard(
+        movieGroup: MovieGroup,
+        isExpanded: Boolean,
+        cinemaCount: Int,
+        posterBitmap: Bitmap?
+    ) {
         val metadata = buildList {
             movieGroup.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
             movieGroup.durationMinutes?.let { add("${it} min") }
             movieGroup.genre?.takeIf { it.isNotBlank() }?.let { add(it) }
         }.joinToString(" · ")
 
+        val normalizedKey = movieGroup.title.trim().lowercase().replace(".", "").replace(":", "")
+        val chevron = if (isExpanded) "▼" else "▶"
+
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .background(cardBgColor)
+                .clickable(
+                    actionRunCallback<ToggleMovieAccordionCallback>(
+                        ToggleMovieAccordionCallback.createParameters(normalizedKey)
+                    )
+                )
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Text(
+                text = "$chevron  ",
+                style = TextStyle(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = cinecoAccent
+                )
+            )
+
             Box(
                 modifier = GlanceModifier
                     .width(36.dp)
@@ -716,6 +763,20 @@ class CinemaWidget : GlanceAppWidget() {
                         )
                     )
                 }
+            }
+
+            if (cinemaCount > 0) {
+                Text(
+                    text = "$cinemaCount cines",
+                    style = TextStyle(
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textTertiaryColor
+                    ),
+                    modifier = GlanceModifier
+                        .background(chipBgColor)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
             }
         }
     }
