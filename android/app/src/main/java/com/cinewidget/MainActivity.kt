@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
 fun ConfigScreen(context: Context) {
     val prefs = remember { context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE) }
     var backendUrl by remember {
-        mutableStateOf(prefs.getString("backend_url", "https://tu-backend-en-google-cloud.a.run.app/") ?: "")
+        mutableStateOf(prefs.getString("backend_url", "") ?: "")
     }
 
     Column(
@@ -86,6 +86,7 @@ fun ConfigScreen(context: Context) {
             value = backendUrl,
             onValueChange = { backendUrl = it },
             label = { Text("Backend Base URL") },
+            placeholder = { Text("https://tu-api.a.run.app") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
