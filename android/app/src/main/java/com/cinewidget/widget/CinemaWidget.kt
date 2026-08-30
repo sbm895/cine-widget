@@ -408,7 +408,7 @@ class CinemaWidget : GlanceAppWidget() {
                 .padding(10.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Columna 1 (Izquierda): Póster de la película (Bitmap real o Placeholder gatito)
+            // Columna 1 (Izquierda): Póster de la película (Bitmap real o Box sobrio)
             Box(
                 modifier = GlanceModifier
                     .width(44.dp)
@@ -424,10 +424,14 @@ class CinemaWidget : GlanceAppWidget() {
                         modifier = GlanceModifier.fillMaxSize()
                     )
                 } else {
-                    Image(
-                        provider = ImageProvider(R.drawable.placeholder_cat),
-                        contentDescription = "Sin póster",
-                        modifier = GlanceModifier.fillMaxSize()
+                    Text(
+                        text = "CINE",
+                        style = TextStyle(
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textTertiaryColor,
+                            textAlign = TextAlign.Center
+                        )
                     )
                 }
             }
@@ -561,7 +565,7 @@ class CinemaWidget : GlanceAppWidget() {
                 .padding(10.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Póster a la izquierda (Real o Placeholder gatito)
+            // Póster a la izquierda (Real o Box sobrio)
             Box(
                 modifier = GlanceModifier
                     .width(44.dp)
@@ -577,10 +581,14 @@ class CinemaWidget : GlanceAppWidget() {
                         modifier = GlanceModifier.fillMaxSize()
                     )
                 } else {
-                    Image(
-                        provider = ImageProvider(R.drawable.placeholder_cat),
-                        contentDescription = "Sin póster",
-                        modifier = GlanceModifier.fillMaxSize()
+                    Text(
+                        text = "CINE",
+                        style = TextStyle(
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textTertiaryColor,
+                            textAlign = TextAlign.Center
+                        )
                     )
                 }
             }
