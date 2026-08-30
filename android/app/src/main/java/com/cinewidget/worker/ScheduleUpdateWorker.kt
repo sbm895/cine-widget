@@ -36,6 +36,9 @@ class ScheduleUpdateWorker(
                 .putBoolean("is_syncing", false)
                 .commit()
 
+            // Pre-descargar imágenes en segundo plano a la caché local sin bloquear la UI del widget
+            com.cinewidget.util.WidgetImageCache.prefetchPosters(context, response)
+
             CinemaWidget().updateAll(context)
             Result.success()
         } catch (e: Exception) {

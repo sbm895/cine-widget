@@ -93,52 +93,17 @@ class CinemaWidget : GlanceAppWidget() {
             null
         }
 
-        // Descargar pósters en segundo plano con Coil (50x75px ultra-ligero para RemoteViews IPC)
-        val posterBitmaps = withContext(Dispatchers.IO) {
-            val map = mutableMapOf<String, Bitmap>()
-            if (schedule != null) {
-                try {
-                    val okHttpClient = okhttp3.OkHttpClient.Builder()
-                        .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
-                        .addInterceptor { chain ->
-                            val original = chain.request()
-                            val reqBuilder = original.newBuilder()
-                            if (original.url.host.contains("moviexchange.com")) {
-                                reqBuilder.header("Referer", "https://www.cinecolombia.com/")
-                            }
-                            chain.proceed(reqBuilder.build())
-                        }
-                        .build()
-
-                    val imageLoader = ImageLoader.Builder(context)
-                        .okHttpClient(okHttpClient)
-                        .build()
-
-                    schedule.cinemas.flatMap { it.movies }.take(20).forEach { movie ->
-                        val url = movie.coverImage
-                        if (!url.isNullOrBlank() && !map.containsKey(url)) {
-                            try {
-                                val request = ImageRequest.Builder(context)
-                                    .data(url)
-                                    .size(50, 75)
-                                    .scale(Scale.FIT)
-                                    .allowHardware(false)
-                                    .build()
-                                val drawable = imageLoader.execute(request).drawable
-                                drawable?.toBitmap(50, 75)?.let { bitmap ->
-                                    map[url] = bitmap
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
+        // Obtener bitmaps pre-cacheados localmente en 0 ms (sin llamadas de red bloqueantes)
+        val posterBitmaps = mutableMapOf<String, Bitmap>()
+        if (schedule != null) {
+            schedule.cinemas.flatMap { it.movies }.take(20).forEach { movie ->
+                val url = movie.coverImage
+                if (!url.isNullOrBlank() && !posterBitmaps.containsKey(url)) {
+                    com.cinewidget.util.WidgetImageCache.getCachedBitmap(context, url)?.let { bitmap ->
+                        posterBitmaps[url] = bitmap
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
                 }
             }
-            map
         }
 
         provideContent {
