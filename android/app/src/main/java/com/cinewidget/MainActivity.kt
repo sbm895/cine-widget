@@ -114,14 +114,14 @@ fun AppScreen(context: Context) {
         )
     }
 
-    fun doSync() {
+    fun doSync(forceRefresh: Boolean) {
         val url = backendUrl.trim()
         if (url.isBlank()) {
             Toast.makeText(context, "Por favor ingresa una URL válida", Toast.LENGTH_SHORT).show()
             return
         }
 
-        prefs.edit().putString("backend_url", url).apply()
+        prefs.edit().putString("backend_url", url).commit()
         isSyncing = true
         syncError = null
 
@@ -129,7 +129,7 @@ fun AppScreen(context: Context) {
             try {
                 val apiService = RetrofitClient.createService(url)
                 val response = withContext(Dispatchers.IO) {
-                    apiService.getUnifiedSchedule(refresh = true)
+                    apiService.getUnifiedSchedule(refresh = forceRefresh)
                 }
 
                 val json = Gson().toJson(response)
@@ -139,10 +139,11 @@ fun AppScreen(context: Context) {
 
                 // Disparar worker para refrescar el widget también
                 val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>()
-                    .setInputData(workDataOf("force_refresh" to true))
+                    .setInputData(workDataOf("force_refresh" to forceRefresh))
                     .build()
                 WorkManager.getInstance(context).enqueue(request)
-                Toast.makeText(context, "Cartelera sincronizada exitosamente", Toast.LENGTH_SHORT).show()
+                val msg = if (forceRefresh) "Cartelera forzada y actualizada en vivo" else "Cartelera sincronizada desde caché rápida"
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 e.printStackTrace()
                 syncError = e.localizedMessage ?: "Error al conectar con el backend"
@@ -166,45 +167,60 @@ fun AppScreen(context: Context) {
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        OutlinedTextField(
+            value = backendUrl,
+            onValueChange = { backendUrl = it },
+            label = { Text("URL de API (/api/movies)") },
+            placeholder = { Text("https://tu-api.a.run.app") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                focusedBorderColor = CinecoAccent,
+                unfocusedBorderColor = TextTertiary,
+                focusedLabelColor = TextPrimary,
+                unfocusedLabelColor = TextSecondary
+            )
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Dos botones de sincronización separados
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedTextField(
-                value = backendUrl,
-                onValueChange = { backendUrl = it },
-                label = { Text("URL de API (/api/movies)") },
-                placeholder = { Text("https://tu-api.a.run.app") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedBorderColor = CinecoAccent,
-                    unfocusedBorderColor = TextTertiary,
-                    focusedLabelColor = TextPrimary,
-                    unfocusedLabelColor = TextSecondary
-                )
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
+            // Botón 1: Rápido (Caché SWR - 1 ms)
             Button(
-                onClick = { if (!isSyncing) doSync() },
+                onClick = { if (!isSyncing) doSync(forceRefresh = false) },
                 enabled = !isSyncing,
+                modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isSyncing) TextTertiary else CinecoAccent
                 )
             ) {
                 if (isSyncing) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                         color = Color.White,
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Sincronizar")
+                    Text("⚡ Rápido (1 ms)", fontSize = 12.sp)
                 }
+            }
+
+            // Botón 2: Forzar Scraping en Vivo (refresh = true)
+            OutlinedButton(
+                onClick = { if (!isSyncing) doSync(forceRefresh = true) },
+                enabled = !isSyncing,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = RoyalAccent
+                )
+            ) {
+                Text("🔄 Forzar En Vivo", fontSize = 12.sp)
             }
         }
 

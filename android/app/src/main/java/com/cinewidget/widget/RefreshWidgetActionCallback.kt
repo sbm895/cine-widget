@@ -29,7 +29,7 @@ class RefreshWidgetActionCallback : ActionCallback {
         CinemaWidget().updateAll(context)
 
         val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>()
-            .setInputData(workDataOf("force_refresh" to true))
+            .setInputData(workDataOf("force_refresh" to false))
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             "manual_cinema_schedule_refresh",
