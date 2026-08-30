@@ -12,8 +12,6 @@ import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.*
@@ -122,10 +120,10 @@ class CinemaWidget : GlanceAppWidget() {
                     )
                 }
             } else {
-                LazyColumn(
+                Column(
                     modifier = GlanceModifier.fillMaxSize()
                 ) {
-                    items(schedule.cinemas) { cinema ->
+                    schedule.cinemas.forEach { cinema ->
                         CinemaSection(cinema)
                     }
                 }
