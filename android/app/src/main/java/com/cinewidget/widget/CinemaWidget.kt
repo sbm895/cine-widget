@@ -9,7 +9,6 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
-import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionRunCallback
@@ -203,10 +202,11 @@ class CinemaWidget : GlanceAppWidget() {
         }
 
         val actionModifier = if (!showtime.bookingUrl.isNullOrBlank()) {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(showtime.bookingUrl)).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            GlanceModifier.clickable(actionStartActivity(intent))
+            GlanceModifier.clickable(
+                actionRunCallback<OpenBookingUrlActionCallback>(
+                    OpenBookingUrlActionCallback.createParameters(showtime.bookingUrl)
+                )
+            )
         } else {
             GlanceModifier.clickable(actionRunCallback<RefreshWidgetActionCallback>())
         }
