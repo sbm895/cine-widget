@@ -53,6 +53,13 @@ class CinemaWidget : GlanceAppWidget() {
     private val cinecoAccent = ColorProvider(Color(0xFF1E88E5))         // Acento Cine Colombia
     private val royalAccent = ColorProvider(Color(0xFFE5A00D))          // Acento Royal Films
 
+    // Modelos aplanados para LazyColumn (Flat List)
+    sealed interface CinemaFeedItem {
+        data class CinemaHeader(val name: String, val location: String, val accent: ColorProvider) : CinemaFeedItem
+        data class MovieCardItem(val movie: Movie, val brandAccent: ColorProvider, val posterUrl: String?) : CinemaFeedItem
+        data class EmptyCinemaMessage(val message: String) : CinemaFeedItem
+    }
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
         val isSyncing = prefs.getBoolean("is_syncing", false)
@@ -68,7 +75,7 @@ class CinemaWidget : GlanceAppWidget() {
             null
         }
 
-        // Descargar pósters en segundo plano con Coil (redimensionados e inyectando Referer para MovieXchange)
+        // Descargar pósters en segundo plano con Coil (80x120px optimizado para IPC de RemoteViews)
         val posterBitmaps = withContext(Dispatchers.IO) {
             val map = mutableMapOf<String, Bitmap>()
             if (schedule != null) {
@@ -93,7 +100,7 @@ class CinemaWidget : GlanceAppWidget() {
                         try {
                             val request = ImageRequest.Builder(context)
                                 .data(url)
-                                .size(120, 180)
+                                .size(80, 120) // Redimensionado ligero para que quepan 30+ imágenes en el IPC buffer
                                 .scale(Scale.FIT)
                                 .allowHardware(false)
                                 .build()
@@ -128,7 +135,7 @@ class CinemaWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(widgetBgColor)
-                .padding(14.dp)
+                .padding(12.dp)
         ) {
             // Header con Título y Botón Actualizar
             Row(
@@ -182,7 +189,7 @@ class CinemaWidget : GlanceAppWidget() {
 
             Spacer(modifier = GlanceModifier.height(8.dp))
 
-            // Selector de Modo (Tabs / Segmented Pill: [ Cines | Películas ])
+            // Selector de Modo (Tabs / Segmented Pill: [ Por Cine | Por Película ])
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
@@ -267,7 +274,7 @@ class CinemaWidget : GlanceAppWidget() {
                 }
             } else {
                 if (viewMode == "by_movie") {
-                    // Modo Por Película: Agrupar cines y horarios por película
+                    // Modo Por Película: Agrupar cines y horarios por película (Flat Items)
                     val groupedMovies = groupScheduleByMovie(schedule.cinemas)
                     LazyColumn(
                         modifier = GlanceModifier.fillMaxSize()
@@ -278,18 +285,59 @@ class CinemaWidget : GlanceAppWidget() {
                         }
                     }
                 } else {
-                    // Modo Por Cine (Por defecto)
+                    // Modo Por Cine: Lista completamente aplanada para soportar todas las películas
+                    val flatItems = buildFlatCinemaList(schedule.cinemas)
                     LazyColumn(
                         modifier = GlanceModifier.fillMaxSize()
                     ) {
-                        items(schedule.cinemas) { cinema ->
-                            CinemaSection(cinema, posterBitmaps)
-                            Spacer(modifier = GlanceModifier.height(8.dp))
+                        items(flatItems) { item ->
+                            when (item) {
+                                is CinemaFeedItem.CinemaHeader -> {
+                                    CinemaHeaderRow(item)
+                                    Spacer(modifier = GlanceModifier.height(4.dp))
+                                }
+                                is CinemaFeedItem.MovieCardItem -> {
+                                    MovieCard(item.movie, item.brandAccent, posterBitmaps[item.posterUrl])
+                                    Spacer(modifier = GlanceModifier.height(6.dp))
+                                }
+                                is CinemaFeedItem.EmptyCinemaMessage -> {
+                                    Text(
+                                        text = item.message,
+                                        style = TextStyle(
+                                            fontSize = 11.sp,
+                                            color = textSecondaryColor
+                                        ),
+                                        modifier = GlanceModifier
+                                            .fillMaxWidth()
+                                            .background(cardBgColor)
+                                            .padding(10.dp)
+                                    )
+                                    Spacer(modifier = GlanceModifier.height(6.dp))
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun buildFlatCinemaList(cinemas: List<CinemaSchedule>): List<CinemaFeedItem> {
+        val result = mutableListOf<CinemaFeedItem>()
+        cinemas.forEach { cinema ->
+            val brandAccent = getCinemaAccent(cinema.cinemaName, cinema.cinemaId)
+            result.add(CinemaFeedItem.CinemaHeader(cinema.cinemaName, cinema.location, brandAccent))
+
+            if (cinema.status == "error" || cinema.movies.isEmpty()) {
+                val msg = cinema.errorMessage ?: "Funciones no disponibles temporalmente."
+                result.add(CinemaFeedItem.EmptyCinemaMessage(msg))
+            } else {
+                cinema.movies.forEach { movie ->
+                    result.add(CinemaFeedItem.MovieCardItem(movie, brandAccent, movie.coverImage))
+                }
+            }
+        }
+        return result
     }
 
     private fun getCinemaAccent(cinemaName: String, cinemaId: String): ColorProvider {
@@ -303,68 +351,40 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun CinemaSection(cinema: CinemaSchedule, posterBitmaps: Map<String, Bitmap>) {
-        val brandAccent = getCinemaAccent(cinema.cinemaName, cinema.cinemaId)
-
-        Column(
-            modifier = GlanceModifier.fillMaxWidth()
+    private fun CinemaHeaderRow(header: CinemaFeedItem.CinemaHeader) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Título de la sección del Cine con tipografía sobria y punto acento
-            Row(
-                modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "•",
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = brandAccent
-                    ),
-                    modifier = GlanceModifier.padding(end = 4.dp)
-                )
+            Text(
+                text = "•",
+                style = TextStyle(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = header.accent
+                ),
+                modifier = GlanceModifier.padding(end = 4.dp)
+            )
 
-                Text(
-                    text = cinema.cinemaName.uppercase(),
-                    style = TextStyle(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimaryColor
-                    )
+            Text(
+                text = header.name.uppercase(),
+                style = TextStyle(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimaryColor
                 )
+            )
 
-                Text(
-                    text = "  ${cinema.location}",
-                    style = TextStyle(
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = textTertiaryColor
-                    )
+            Text(
+                text = "  ${header.location}",
+                style = TextStyle(
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = textTertiaryColor
                 )
-            }
-
-            Spacer(modifier = GlanceModifier.height(4.dp))
-
-            if (cinema.status == "error" || cinema.movies.isEmpty()) {
-                Text(
-                    text = cinema.errorMessage ?: "Funciones no disponibles temporalmente.",
-                    style = TextStyle(
-                        fontSize = 11.sp,
-                        color = textSecondaryColor
-                    ),
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .background(cardBgColor)
-                        .padding(10.dp)
-                )
-            } else {
-                cinema.movies.forEach { movie ->
-                    MovieCard(movie, brandAccent, posterBitmaps[movie.coverImage])
-                    Spacer(modifier = GlanceModifier.height(6.dp))
-                }
-            }
+            )
         }
     }
 

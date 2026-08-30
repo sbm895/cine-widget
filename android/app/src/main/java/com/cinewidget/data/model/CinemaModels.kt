@@ -27,6 +27,7 @@ data class Movie(
     @SerializedName("duration_minutes") val durationMinutes: Int? = null,
     @SerializedName("genre") val genre: String? = null,
     @SerializedName("cover_image") val coverImage: String? = null,
+    @SerializedName("requires_proxy") val requiresProxy: Boolean = false,
     @SerializedName("showtimes") val showtimes: List<Showtime> = emptyList()
 )
 
