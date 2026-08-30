@@ -26,6 +26,16 @@ import com.cinewidget.data.model.Showtime
 import com.cinewidget.data.model.UnifiedScheduleResponse
 import com.google.gson.Gson
 
+import android.graphics.Bitmap
+import androidx.core.graphics.drawable.toBitmap
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.size.Scale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 class CinemaWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Exact
@@ -55,15 +65,47 @@ class CinemaWidget : GlanceAppWidget() {
             null
         }
 
+        // Descargar pósters en segundo plano con Coil (redimensionados para RemoteViews)
+        val posterBitmaps = withContext(Dispatchers.IO) {
+            val map = mutableMapOf<String, Bitmap>()
+            if (schedule != null) {
+                val imageLoader = ImageLoader(context)
+                schedule.cinemas.flatMap { it.movies }.forEach { movie ->
+                    val url = movie.coverImage
+                    if (!url.isNullOrBlank() && !map.containsKey(url)) {
+                        try {
+                            val request = ImageRequest.Builder(context)
+                                .data(url)
+                                .size(120, 180) // Tamaño miniatura óptimo para widgets
+                                .scale(Scale.FIT)
+                                .allowHardware(false) // Necesario para RemoteViews/Glance
+                                .build()
+                            val drawable = imageLoader.execute(request).drawable
+                            drawable?.toBitmap()?.let { bitmap ->
+                                map[url] = bitmap
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
+            map
+        }
+
         provideContent {
             GlanceTheme {
-                WidgetContent(schedule, isSyncing)
+                WidgetContent(schedule, isSyncing, posterBitmaps)
             }
         }
     }
 
     @Composable
-    private fun WidgetContent(schedule: UnifiedScheduleResponse?, isSyncing: Boolean) {
+    private fun WidgetContent(
+        schedule: UnifiedScheduleResponse?,
+        isSyncing: Boolean,
+        posterBitmaps: Map<String, Bitmap>
+    ) {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
@@ -149,7 +191,7 @@ class CinemaWidget : GlanceAppWidget() {
                     modifier = GlanceModifier.fillMaxSize()
                 ) {
                     schedule.cinemas.forEach { cinema ->
-                        CinemaSection(cinema)
+                        CinemaSection(cinema, posterBitmaps)
                         Spacer(modifier = GlanceModifier.height(8.dp))
                     }
                 }
@@ -158,7 +200,7 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun CinemaSection(cinema: CinemaSchedule) {
+    private fun CinemaSection(cinema: CinemaSchedule, posterBitmaps: Map<String, Bitmap>) {
         val isCinemark = cinema.cinemaName.contains("cinemark", ignoreCase = true) ||
                 cinema.cinemaId.contains("cinemark", ignoreCase = true)
 
@@ -219,7 +261,7 @@ class CinemaWidget : GlanceAppWidget() {
                 )
             } else {
                 cinema.movies.forEach { movie ->
-                    MovieCard(movie, isCinemark)
+                    MovieCard(movie, isCinemark, posterBitmaps[movie.coverImage])
                     Spacer(modifier = GlanceModifier.height(6.dp))
                 }
             }
@@ -227,7 +269,7 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun MovieCard(movie: Movie, isCinemark: Boolean) {
+    private fun MovieCard(movie: Movie, isCinemark: Boolean, posterBitmap: Bitmap?) {
         val metadata = buildList {
             movie.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
             movie.durationMinutes?.let { add("${it} min") }
@@ -241,7 +283,7 @@ class CinemaWidget : GlanceAppWidget() {
                 .padding(10.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Columna 1 (Izquierda): Contenedor de Póster sobrio y redondeado visualmente
+            // Columna 1 (Izquierda): Póster de la película (Bitmap real o Placeholder)
             Box(
                 modifier = GlanceModifier
                     .width(44.dp)
@@ -250,15 +292,23 @@ class CinemaWidget : GlanceAppWidget() {
                     .padding(2.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "CINE",
-                    style = TextStyle(
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textTertiaryColor,
-                        textAlign = TextAlign.Center
+                if (posterBitmap != null) {
+                    Image(
+                        provider = ImageProvider(posterBitmap),
+                        contentDescription = movie.title,
+                        modifier = GlanceModifier.fillMaxSize()
                     )
-                )
+                } else {
+                    Text(
+                        text = "CINE",
+                        style = TextStyle(
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textTertiaryColor,
+                            textAlign = TextAlign.Center
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = GlanceModifier.width(10.dp))

@@ -59,4 +59,7 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Coil para descarga y caché de imágenes a Bitmap en Widgets
+    implementation("io.coil-kt:coil:2.6.0")
 }
