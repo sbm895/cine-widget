@@ -114,7 +114,7 @@ fun AppScreen(context: Context) {
         )
     }
 
-    fun doSync(forceRefresh: Boolean) {
+    fun doSync(forceRefresh: Boolean = false) {
         val url = backendUrl.trim()
         if (url.isBlank()) {
             Toast.makeText(context, "Por favor ingresa una URL válida", Toast.LENGTH_SHORT).show()
