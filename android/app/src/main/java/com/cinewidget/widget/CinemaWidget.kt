@@ -534,14 +534,14 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     // Estructura de soporte para vista "Por Película"
-    private data class CinemaShowtimeGroup(
+    data class CinemaShowtimeGroup(
         val cinemaName: String,
         val location: String,
         val accent: ColorProvider,
         val showtimes: List<Showtime>
     )
 
-    private data class MovieGroup(
+    data class MovieGroup(
         val title: String,
         val rating: String?,
         val durationMinutes: Int?,
