@@ -30,6 +30,17 @@ class CinemaWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Exact
 
+    // Paleta de colores minimalista inspirada en la referencia:
+    private val widgetBgColor = ColorProvider(Color(0xFF1E1A1D))        // Fondo oscuro profundo
+    private val cardBgColor = ColorProvider(Color(0xFF282328))          // Tarjeta película elevada
+    private val textPrimaryColor = ColorProvider(Color(0xFFF3EDF1))     // Texto blanco suave
+    private val textSecondaryColor = ColorProvider(Color(0xFFA89FA6))   // Texto secundario atenuado
+    private val textTertiaryColor = ColorProvider(Color(0xFF7E757D))    // Texto terciario / metadatos
+    private val chipBgColor = ColorProvider(Color(0xFF332D34))          // Fondo chip de horario
+    private val chipBorderColor = ColorProvider(Color(0xFF453D46))      // Borde / acento sutil chip
+    private val cinemarkAccent = ColorProvider(Color(0xFFE50914))       // Acento Cinemark
+    private val cinecoAccent = ColorProvider(Color(0xFF1E88E5))         // Acento Cine Colombia
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
         val isSyncing = prefs.getBoolean("is_syncing", false)
@@ -56,68 +67,66 @@ class CinemaWidget : GlanceAppWidget() {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(GlanceTheme.colors.background)
-                .padding(10.dp)
+                .background(widgetBgColor)
+                .padding(14.dp)
         ) {
-            // Header del Widget
+            // Header Minimalista (Similar a "Tokyo / Mostly cloudy" en la referencia)
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "CARTELERA DE CINES",
-                    style = TextStyle(
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GlanceTheme.colors.primary
-                    ),
+                Column(
                     modifier = GlanceModifier.defaultWeight()
-                )
-
-                if (schedule != null && schedule.date.isNotBlank()) {
+                ) {
                     Text(
-                        text = schedule.date,
+                        text = "Cartelera",
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textPrimaryColor
+                        )
+                    )
+                    Text(
+                        text = if (schedule != null && schedule.date.isNotBlank()) schedule.date else "Barranquilla y Soledad",
                         style = TextStyle(
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = GlanceTheme.colors.secondary
+                            fontWeight = FontWeight.Normal,
+                            color = textSecondaryColor
                         )
                     )
                 }
 
-                Spacer(modifier = GlanceModifier.width(8.dp))
-
                 val refreshText = if (isSyncing) "Sincronizando..." else "Actualizar"
                 val refreshModifier = if (!isSyncing) {
                     GlanceModifier
-                        .background(GlanceTheme.colors.primaryContainer)
+                        .background(cardBgColor)
                         .clickable(actionRunCallback<RefreshWidgetActionCallback>())
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 } else {
                     GlanceModifier
-                        .background(GlanceTheme.colors.surfaceVariant)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(chipBgColor)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 }
 
                 Text(
                     text = refreshText,
                     style = TextStyle(
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSyncing) GlanceTheme.colors.secondary else GlanceTheme.colors.primary
+                        fontWeight = FontWeight.Medium,
+                        color = if (isSyncing) textTertiaryColor else textSecondaryColor
                     ),
                     modifier = refreshModifier
                 )
             }
 
-            Spacer(modifier = GlanceModifier.height(6.dp))
+            Spacer(modifier = GlanceModifier.height(10.dp))
 
             if (schedule == null || schedule.cinemas.isEmpty()) {
                 val emptyMessage = if (isSyncing) {
-                    "Sincronizando cartelera...\nPor favor espera unos segundos."
+                    "Sincronizando cartelera en segundo plano..."
                 } else {
-                    "Sin datos disponibles.\nToca aquí para sincronizar."
+                    "Sin funciones cargadas.\nToca para sincronizar."
                 }
 
                 Box(
@@ -131,7 +140,7 @@ class CinemaWidget : GlanceAppWidget() {
                         style = TextStyle(
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
-                            color = GlanceTheme.colors.onSurfaceVariant
+                            color = textSecondaryColor
                         )
                     )
                 }
@@ -141,6 +150,7 @@ class CinemaWidget : GlanceAppWidget() {
                 ) {
                     schedule.cinemas.forEach { cinema ->
                         CinemaSection(cinema)
+                        Spacer(modifier = GlanceModifier.height(8.dp))
                     }
                 }
             }
@@ -152,41 +162,43 @@ class CinemaWidget : GlanceAppWidget() {
         val isCinemark = cinema.cinemaName.contains("cinemark", ignoreCase = true) ||
                 cinema.cinemaId.contains("cinemark", ignoreCase = true)
 
-        // Color coding por cine:
-        // Cinemark: Tonos Rojizo / Borgoña
-        // Cine Colombia: Tonos Azul / Marino
-        val headerBg = if (isCinemark) ColorProvider(Color(0xFFE50914)) else ColorProvider(Color(0xFF003B73))
-        val headerText = ColorProvider(Color(0xFFFFFFFF))
-        val cardBorderBg = if (isCinemark) ColorProvider(Color(0x26E50914)) else ColorProvider(Color(0x26003B73))
+        val brandAccent = if (isCinemark) cinemarkAccent else cinecoAccent
 
         Column(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp)
+            modifier = GlanceModifier.fillMaxWidth()
         ) {
-            // Header del Complejo de Cine con su Color de Marca
+            // Título de la sección del Cine con tipografía sobria y punto acento
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .background(headerBg)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
+                    text = "•",
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = brandAccent
+                    ),
+                    modifier = GlanceModifier.padding(end = 4.dp)
+                )
+
+                Text(
                     text = cinema.cinemaName.uppercase(),
                     style = TextStyle(
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = headerText
+                        color = textPrimaryColor
                     )
                 )
 
                 Text(
-                    text = "  |  ${cinema.location}",
+                    text = "  ${cinema.location}",
                     style = TextStyle(
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Normal,
-                        color = headerText
+                        color = textTertiaryColor
                     )
                 )
             }
@@ -198,16 +210,16 @@ class CinemaWidget : GlanceAppWidget() {
                     text = cinema.errorMessage ?: "Funciones no disponibles temporalmente.",
                     style = TextStyle(
                         fontSize = 11.sp,
-                        color = GlanceTheme.colors.error
+                        color = textSecondaryColor
                     ),
                     modifier = GlanceModifier
                         .fillMaxWidth()
-                        .background(cardBorderBg)
+                        .background(cardBgColor)
                         .padding(10.dp)
                 )
             } else {
                 cinema.movies.forEach { movie ->
-                    MovieCard(movie, isCinemark, cardBorderBg)
+                    MovieCard(movie, isCinemark)
                     Spacer(modifier = GlanceModifier.height(6.dp))
                 }
             }
@@ -215,43 +227,43 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun MovieCard(movie: Movie, isCinemark: Boolean, cardBorderBg: ColorProvider) {
+    private fun MovieCard(movie: Movie, isCinemark: Boolean) {
         val metadata = buildList {
             movie.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
             movie.durationMinutes?.let { add("${it} min") }
             movie.genre?.takeIf { it.isNotBlank() }?.let { add(it) }
-        }.joinToString("  •  ")
+        }.joinToString(" · ")
 
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(cardBorderBg)
-                .padding(8.dp),
+                .background(cardBgColor)
+                .padding(10.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Columna 1 (Izquierda): Placeholder / Contenedor del Póster de la Película
+            // Columna 1 (Izquierda): Contenedor de Póster sobrio y redondeado visualmente
             Box(
                 modifier = GlanceModifier
-                    .width(48.dp)
-                    .height(72.dp)
-                    .background(GlanceTheme.colors.surfaceVariant)
+                    .width(44.dp)
+                    .height(66.dp)
+                    .background(chipBgColor)
                     .padding(2.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "POSTER",
+                    text = "CINE",
                     style = TextStyle(
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
-                        color = GlanceTheme.colors.onSurfaceVariant,
+                        color = textTertiaryColor,
                         textAlign = TextAlign.Center
                     )
                 )
             }
 
-            Spacer(modifier = GlanceModifier.width(8.dp))
+            Spacer(modifier = GlanceModifier.width(10.dp))
 
-            // Columna 2 (Derecha): Título, Metadatos y Cuadrícula de Horarios
+            // Columna 2 (Derecha): Información y Grid de Horarios estilo pronóstico
             Column(
                 modifier = GlanceModifier
                     .defaultWeight()
@@ -260,9 +272,9 @@ class CinemaWidget : GlanceAppWidget() {
                 Text(
                     text = movie.title,
                     style = TextStyle(
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = GlanceTheme.colors.onBackground
+                        color = textPrimaryColor
                     )
                 )
 
@@ -271,13 +283,14 @@ class CinemaWidget : GlanceAppWidget() {
                         text = metadata,
                         style = TextStyle(
                             fontSize = 10.sp,
-                            color = GlanceTheme.colors.secondary
+                            fontWeight = FontWeight.Normal,
+                            color = textTertiaryColor
                         ),
-                        modifier = GlanceModifier.padding(top = 1.dp, bottom = 4.dp)
+                        modifier = GlanceModifier.padding(top = 1.dp, bottom = 6.dp)
                     )
                 }
 
-                // Horarios distribuidos en filas de 2 columnas (Cuadrícula balanceada)
+                // Cuadrícula de 2 columnas de horarios
                 val chunkedShowtimes = movie.showtimes.chunked(2)
                 chunkedShowtimes.forEach { rowItems ->
                     Row(
@@ -295,7 +308,6 @@ class CinemaWidget : GlanceAppWidget() {
                                 ShowtimeChip(showtime, isCinemark)
                             }
                         }
-                        // Si la fila tiene solo 1 elemento, rellenamos el espacio restante
                         if (rowItems.size == 1) {
                             Spacer(modifier = GlanceModifier.defaultWeight().padding(horizontal = 2.dp))
                         }
@@ -319,7 +331,7 @@ class CinemaWidget : GlanceAppWidget() {
 
         val chipText = buildString {
             append(showtime.time)
-            if (screenInfo.isNotEmpty()) append(" [$screenInfo]")
+            if (screenInfo.isNotEmpty()) append(" $screenInfo")
             append(" · $availabilityText")
         }
 
@@ -336,9 +348,9 @@ class CinemaWidget : GlanceAppWidget() {
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(GlanceTheme.colors.surfaceVariant)
+                .background(chipBgColor)
                 .then(actionModifier)
-                .padding(horizontal = 6.dp, vertical = 4.dp),
+                .padding(horizontal = 6.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -347,7 +359,7 @@ class CinemaWidget : GlanceAppWidget() {
                 style = TextStyle(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
-                    color = GlanceTheme.colors.onSurfaceVariant,
+                    color = textPrimaryColor,
                     textAlign = TextAlign.Center
                 )
             )
