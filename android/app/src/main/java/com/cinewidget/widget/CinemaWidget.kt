@@ -1,17 +1,23 @@
 package com.cinewidget.widget
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.*
@@ -20,19 +26,14 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.size.Scale
 import com.cinewidget.data.model.CinemaSchedule
 import com.cinewidget.data.model.Movie
 import com.cinewidget.data.model.Showtime
 import com.cinewidget.data.model.UnifiedScheduleResponse
 import com.google.gson.Gson
-
-import android.graphics.Bitmap
-import androidx.core.graphics.drawable.toBitmap
-import androidx.glance.Image
-import androidx.glance.ImageProvider
-import coil.ImageLoader
-import coil.request.ImageRequest
-import coil.size.Scale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -187,10 +188,11 @@ class CinemaWidget : GlanceAppWidget() {
                     )
                 }
             } else {
-                Column(
+                // Usamos LazyColumn para scroll vertical fluido de todos los cines
+                LazyColumn(
                     modifier = GlanceModifier.fillMaxSize()
                 ) {
-                    schedule.cinemas.forEach { cinema ->
+                    items(schedule.cinemas) { cinema ->
                         CinemaSection(cinema, posterBitmaps)
                         Spacer(modifier = GlanceModifier.height(8.dp))
                     }
