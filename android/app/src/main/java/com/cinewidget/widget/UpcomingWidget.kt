@@ -1,4 +1,4 @@
-package com.cinewidget.widget
+ï»¿package com.cinewidget.widget
 
 import android.content.ComponentName
 import android.content.Context
@@ -90,7 +90,7 @@ class UpcomingWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "? Próximas Funciones ?",
+                    text = "PrÃ³ximas Funciones â†—",
                     style = TextStyle(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -129,7 +129,7 @@ class UpcomingWidget : GlanceAppWidget() {
                 return@Column
             }
 
-            // Extraer y ordenar funciones cronológicamente
+            // Extraer y ordenar funciones cronolÃ³gicamente
             val upcomingItems = schedule.cinemas.flatMap { cinema ->
                 val accent = getCinemaAccent(cinema.cinemaName, cinema.cinemaId)
                 cinema.movies.flatMap { movie ->
@@ -209,7 +209,7 @@ class UpcomingWidget : GlanceAppWidget() {
 
             Spacer(modifier = GlanceModifier.width(8.dp))
 
-            // Información de Película y Cine
+            // InformaciÃ³n de PelÃ­cula y Cine
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(
                     text = item.movieTitle,
@@ -220,7 +220,7 @@ class UpcomingWidget : GlanceAppWidget() {
                     )
                 )
                 Text(
-                    text = "${item.cinemaName} (${item.cinemaLocation}) · $screenInfo",
+                    text = "${item.cinemaName} (${item.cinemaLocation}) Â· $screenInfo",
                     style = TextStyle(
                         fontSize = 9.sp,
                         color = textTertiaryColor

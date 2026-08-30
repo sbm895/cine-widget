@@ -6,6 +6,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.cinewidget.data.api.RetrofitClient
 import com.cinewidget.widget.CinemaWidget
+import com.cinewidget.widget.SingleCinemaWidget
+import com.cinewidget.widget.UpcomingWidget
 import com.google.gson.Gson
 
 class ScheduleUpdateWorker(
