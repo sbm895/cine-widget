@@ -120,7 +120,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
                 Text(
                     text = " ◀ ",
                     style = TextStyle(
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = brandAccent
                     ),
@@ -132,7 +132,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
                                 )
                             )
                         )
-                        .padding(4.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
 
                 // Nombre de Cine Central (Abre la app al tocarlo)
@@ -165,7 +165,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
                 Text(
                     text = " ▶ ",
                     style = TextStyle(
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = brandAccent
                     ),
@@ -177,13 +177,13 @@ class SingleCinemaWidget : GlanceAppWidget() {
                                 )
                             )
                         )
-                        .padding(4.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
 
             Spacer(modifier = GlanceModifier.height(8.dp))
 
-            // Lista plana de películas para el cine seleccionado
+            // Lista plana de películas optimizada para el cine seleccionado (tope 14 películas)
             if (currentCinema.movies.isEmpty()) {
                 Box(
                     modifier = GlanceModifier.fillMaxSize(),
@@ -195,10 +195,11 @@ class SingleCinemaWidget : GlanceAppWidget() {
                     )
                 }
             } else {
+                val limitedMovies = currentCinema.movies.take(14)
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                    items(currentCinema.movies) { movie ->
+                    items(limitedMovies) { movie ->
                         MovieRow(movie, brandAccent)
-                        Spacer(modifier = GlanceModifier.height(6.dp))
+                        Spacer(modifier = GlanceModifier.height(5.dp))
                     }
                 }
             }
@@ -223,7 +224,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
             Box(
                 modifier = GlanceModifier
                     .width(3.dp)
-                    .height(32.dp)
+                    .height(30.dp)
                     .background(brandAccent)
             ) {}
 
@@ -242,7 +243,7 @@ class SingleCinemaWidget : GlanceAppWidget() {
                     Text(
                         text = metadata,
                         style = TextStyle(fontSize = 9.sp, color = textTertiaryColor),
-                        modifier = GlanceModifier.padding(bottom = 4.dp)
+                        modifier = GlanceModifier.padding(bottom = 3.dp)
                     )
                 }
 

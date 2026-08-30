@@ -29,13 +29,15 @@ import com.cinewidget.MainActivity
 import com.cinewidget.data.model.Showtime
 import com.cinewidget.data.model.UnifiedScheduleResponse
 import com.google.gson.Gson
+import java.util.Calendar
 
 data class UpcomingShowtimeItem(
     val movieTitle: String,
     val cinemaName: String,
     val cinemaLocation: String,
     val accent: ColorProvider,
-    val showtime: Showtime
+    val showtime: Showtime,
+    val minutesOfDay: Int
 )
 
 class UpcomingWidget : GlanceAppWidget() {
@@ -51,6 +53,33 @@ class UpcomingWidget : GlanceAppWidget() {
     private val cinemarkAccent = ColorProvider(Color(0xFFE50914))
     private val cinecoAccent = ColorProvider(Color(0xFF1E88E5))
     private val royalAccent = ColorProvider(Color(0xFFE5A00D))
+
+    companion object {
+        /**
+         * Normaliza cualquier formato horario (24h '18:30', 12h '06:30 PM', '6:30 pm', '06:30 p. m.')
+         * a minutos absolutos transcurridos en el día (0..1439).
+         */
+        fun parseTimeToMinutes(timeStr: String): Int {
+            val clean = timeStr.trim().lowercase()
+            val isPm = clean.contains("pm") || clean.contains("p. m.") || clean.contains("p.m.") || clean.contains("p m")
+            val isAm = clean.contains("am") || clean.contains("a. m.") || clean.contains("a.m.") || clean.contains("a m")
+
+            val digitsOnly = clean.replace(Regex("[^0-9:]"), "")
+            val parts = digitsOnly.split(":")
+            if (parts.isEmpty()) return 0
+
+            var hours = parts.getOrNull(0)?.toIntOrNull() ?: 0
+            val minutes = parts.getOrNull(1)?.toIntOrNull() ?: 0
+
+            if (isPm && hours < 12) {
+                hours += 12
+            } else if (isAm && hours == 12) {
+                hours = 0
+            }
+
+            return (hours * 60) + minutes
+        }
+    }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
@@ -82,7 +111,7 @@ class UpcomingWidget : GlanceAppWidget() {
                 .background(widgetBgColor)
                 .padding(12.dp)
         ) {
-            // Header
+            // Header con acceso directo a la App
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
@@ -129,26 +158,45 @@ class UpcomingWidget : GlanceAppWidget() {
                 return@Column
             }
 
-            // Extraer y ordenar funciones cronológicamente
-            val upcomingItems = schedule.cinemas.flatMap { cinema ->
+            // Calcular minuto actual del día local (ej. 18:30 -> 1110 min)
+            val nowCalendar = Calendar.getInstance()
+            val currentMinutes = (nowCalendar.get(Calendar.HOUR_OF_DAY) * 60) + nowCalendar.get(Calendar.MINUTE)
+            // Margen de 15 minutos de cortesía para funciones por iniciar
+            val thresholdMinutes = (currentMinutes - 15).coerceAtLeast(0)
+
+            // Extraer, normalizar y ordenar funciones
+            val allUpcoming = schedule.cinemas.flatMap { cinema ->
                 val accent = getCinemaAccent(cinema.cinemaName, cinema.cinemaId)
                 cinema.movies.flatMap { movie ->
                     movie.showtimes.map { showtime ->
+                        val minutes = parseTimeToMinutes(showtime.time)
                         UpcomingShowtimeItem(
                             movieTitle = movie.title,
                             cinemaName = cinema.cinemaName,
                             cinemaLocation = cinema.location,
                             accent = accent,
-                            showtime = showtime
+                            showtime = showtime,
+                            minutesOfDay = minutes
                         )
                     }
                 }
             }
-            .sortedBy { it.showtime.time }
-            .take(20)
+
+            // Filtrar desde la hora actual en adelante
+            val futureShowtimes = allUpcoming
+                .filter { it.minutesOfDay >= thresholdMinutes }
+                .sortedBy { it.minutesOfDay }
+                .take(40)
+
+            // Fallback: si ya pasaron todas las funciones del día, mostrar las últimas disponibles
+            val itemsToRender = if (futureShowtimes.isNotEmpty()) {
+                futureShowtimes
+            } else {
+                allUpcoming.sortedBy { it.minutesOfDay }.takeLast(40)
+            }
 
             LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                items(upcomingItems) { item ->
+                items(itemsToRender) { item ->
                     UpcomingRow(item)
                     Spacer(modifier = GlanceModifier.height(5.dp))
                 }
@@ -199,7 +247,7 @@ class UpcomingWidget : GlanceAppWidget() {
 
             Spacer(modifier = GlanceModifier.width(8.dp))
 
-            // Barra de cine
+            // Barra vertical con el color del cine
             Box(
                 modifier = GlanceModifier
                     .width(3.dp)
