@@ -22,13 +22,14 @@ class RefreshWidgetActionCallback : ActionCallback {
             return // Ignorar peticiones duplicadas / spam mientras está en proceso
         }
 
-        prefs.edit().putBoolean("is_syncing", true).apply()
+        // Bloquear el botón y mostrar estado "Sincronizando..." inmediatamente
+        prefs.edit().putBoolean("is_syncing", true).commit()
         CinemaWidget().updateAll(context)
 
         val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>().build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             "manual_cinema_schedule_refresh",
-            ExistingWorkPolicy.KEEP,
+            ExistingWorkPolicy.REPLACE,
             request
         )
     }
