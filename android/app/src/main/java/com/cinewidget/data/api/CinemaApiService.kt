@@ -24,4 +24,11 @@ interface CinemaApiService {
         @Query("date") date: String? = null,
         @Query("refresh") refresh: Boolean = false
     ): CinemaSchedule
+
+    @GET("api/royalfilms")
+    suspend fun getRoyalFilmsSchedule(
+        @Query("theater") theater: String = "viva",
+        @Query("date") date: String? = null,
+        @Query("refresh") refresh: Boolean = false
+    ): CinemaSchedule
 }

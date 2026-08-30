@@ -54,6 +54,30 @@ class ScheduleUpdateWorker(
                     }
                 }
 
+                val royalVivaDeferred = async {
+                    try {
+                        apiService.getRoyalFilmsSchedule("viva")
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
+                val royalPortalDeferred = async {
+                    try {
+                        apiService.getRoyalFilmsSchedule("portal-del-prado")
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
+                val royalUnicoDeferred = async {
+                    try {
+                        apiService.getRoyalFilmsSchedule("unico")
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
                 val cinecoAlegraDeferred = async {
                     try {
                         apiService.getCineColombiaSchedule("parque-alegra")
@@ -70,14 +94,18 @@ class ScheduleUpdateWorker(
                     }
                 }
 
-                // 1. Apenas responda Cinemark, actualizamos inmediatamente el widget (Paso 1)
+                // 1. Apenas respondan los endpoints rápidos (Cinemark y Royal Films), actualizamos de inmediato
                 val cinemarkResult = cinemarkDeferred.await()
-                if (cinemarkResult != null) {
-                    val partialCinemas = mutableListOf(cinemarkResult)
-                    saveAndRefreshWidget(prefs, partialCinemas, isSyncing = true)
+                val royalVivaResult = royalVivaDeferred.await()
+                val royalPortalResult = royalPortalDeferred.await()
+                val royalUnicoResult = royalUnicoDeferred.await()
+
+                val initialFastList = listOfNotNull(cinemarkResult, royalVivaResult, royalPortalResult, royalUnicoResult)
+                if (initialFastList.isNotEmpty()) {
+                    saveAndRefreshWidget(prefs, initialFastList, isSyncing = true)
                 }
 
-                // 2. Esperar respuestas de Cine Colombia (Paso 2)
+                // 2. Esperar respuestas de Cine Colombia y unificado
                 val alegreResult = cinecoAlegraDeferred.await()
                 val buenaResult = cinecoBuenaDeferred.await()
 
@@ -86,11 +114,14 @@ class ScheduleUpdateWorker(
                 val finalCinemas = if (unifiedResult != null && unifiedResult.cinemas.isNotEmpty()) {
                     unifiedResult.cinemas
                 } else {
-                    val list = mutableListOf<CinemaSchedule>()
-                    cinemarkResult?.let { list.add(it) }
-                    alegreResult?.let { list.add(it) }
-                    buenaResult?.let { list.add(it) }
-                    list
+                    listOfNotNull(
+                        cinemarkResult,
+                        royalVivaResult,
+                        royalPortalResult,
+                        royalUnicoResult,
+                        alegreResult,
+                        buenaResult
+                    )
                 }
 
                 if (finalCinemas.isNotEmpty()) {
