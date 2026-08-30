@@ -206,53 +206,83 @@ class CinemaWidget : GlanceAppWidget() {
             movie.genre?.takeIf { it.isNotBlank() }?.let { add(it) }
         }.joinToString("  •  ")
 
-        Column(
+        Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .background(cardBorderBg)
-                .padding(8.dp)
+                .padding(8.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Text(
-                text = movie.title,
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GlanceTheme.colors.onBackground
-                )
-            )
-
-            if (metadata.isNotEmpty()) {
+            // Columna 1 (Izquierda): Placeholder / Contenedor del Póster de la Película
+            Box(
+                modifier = GlanceModifier
+                    .width(48.dp)
+                    .height(72.dp)
+                    .background(GlanceTheme.colors.surfaceVariant)
+                    .padding(2.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = metadata,
+                    text = "POSTER",
                     style = TextStyle(
-                        fontSize = 10.sp,
-                        color = GlanceTheme.colors.secondary
-                    ),
-                    modifier = GlanceModifier.padding(top = 1.dp, bottom = 4.dp)
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 )
             }
 
-            // Horarios distribuidos en filas de 2 columnas (Cuadrícula balanceada)
-            val chunkedShowtimes = movie.showtimes.chunked(2)
-            chunkedShowtimes.forEach { rowItems ->
-                Row(
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    rowItems.forEach { showtime ->
-                        Box(
-                            modifier = GlanceModifier
-                                .defaultWeight()
-                                .padding(horizontal = 2.dp)
-                        ) {
-                            ShowtimeChip(showtime, isCinemark)
+            Spacer(modifier = GlanceModifier.width(8.dp))
+
+            // Columna 2 (Derecha): Título, Metadatos y Cuadrícula de Horarios
+            Column(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = movie.title,
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GlanceTheme.colors.onBackground
+                    )
+                )
+
+                if (metadata.isNotEmpty()) {
+                    Text(
+                        text = metadata,
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            color = GlanceTheme.colors.secondary
+                        ),
+                        modifier = GlanceModifier.padding(top = 1.dp, bottom = 4.dp)
+                    )
+                }
+
+                // Horarios distribuidos en filas de 2 columnas (Cuadrícula balanceada)
+                val chunkedShowtimes = movie.showtimes.chunked(2)
+                chunkedShowtimes.forEach { rowItems ->
+                    Row(
+                        modifier = GlanceModifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        rowItems.forEach { showtime ->
+                            Box(
+                                modifier = GlanceModifier
+                                    .defaultWeight()
+                                    .padding(horizontal = 2.dp)
+                            ) {
+                                ShowtimeChip(showtime, isCinemark)
+                            }
                         }
-                    }
-                    // Si la fila tiene solo 1 elemento, rellenamos el espacio restante
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = GlanceModifier.defaultWeight().padding(horizontal = 2.dp))
+                        // Si la fila tiene solo 1 elemento, rellenamos el espacio restante
+                        if (rowItems.size == 1) {
+                            Spacer(modifier = GlanceModifier.defaultWeight().padding(horizontal = 2.dp))
+                        }
                     }
                 }
             }
