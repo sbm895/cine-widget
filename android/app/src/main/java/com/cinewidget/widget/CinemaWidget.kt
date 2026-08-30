@@ -1,4 +1,4 @@
-﻿package com.cinewidget.widget
+package com.cinewidget.widget
 
 import android.content.Context
 import android.content.Intent
@@ -169,7 +169,7 @@ class CinemaWidget : GlanceAppWidget() {
                 text = movie.title,
                 style = TextStyle(
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     color = GlanceTheme.colors.onBackground
                 )
             )
@@ -202,20 +202,20 @@ class CinemaWidget : GlanceAppWidget() {
             if (seatsBadge.isNotEmpty()) append(" $seatsBadge")
         }
 
-        val intent = showtime.bookingUrl?.let { url ->
-            Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        val actionModifier = if (!showtime.bookingUrl.isNullOrBlank()) {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(showtime.bookingUrl)).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
+            GlanceModifier.clickable(actionStartActivity(intent))
+        } else {
+            GlanceModifier.clickable(actionRunCallback<RefreshWidgetActionCallback>())
         }
 
         Row(
             modifier = GlanceModifier
                 .padding(end = 6.dp, top = 2.dp, bottom = 2.dp)
                 .background(GlanceTheme.colors.surfaceVariant)
-                .clickable(
-                    if (intent != null) actionStartActivity(intent)
-                    else actionRunCallback<RefreshWidgetActionCallback>()
-                )
+                .then(actionModifier)
                 .padding(horizontal = 6.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
