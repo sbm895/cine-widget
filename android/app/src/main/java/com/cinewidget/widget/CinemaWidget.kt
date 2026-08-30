@@ -1,6 +1,7 @@
 package com.cinewidget.widget
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -88,6 +89,9 @@ class CinemaWidget : GlanceAppWidget() {
         val viewMode = prefs.getString("view_mode", "by_cinema") ?: "by_cinema" // "by_cinema" | "by_movie"
         val expandedCinemas = prefs.getStringSet("expanded_cinemas", null) ?: setOf("cinemark-gran-plaza-del-sol")
         val expandedMovies = prefs.getStringSet("expanded_movies", null) ?: emptySet()
+        val openAppIntent = Intent(context, com.cinewidget.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
         val cachedJson = prefs.getString("last_schedule_json", null)
         val schedule = if (cachedJson != null) {
             try {
@@ -101,7 +105,7 @@ class CinemaWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                WidgetContent(schedule, isSyncing, viewMode, expandedCinemas, expandedMovies)
+                WidgetContent(schedule, isSyncing, viewMode, expandedCinemas, expandedMovies, openAppIntent)
             }
         }
     }
@@ -112,7 +116,8 @@ class CinemaWidget : GlanceAppWidget() {
         isSyncing: Boolean,
         viewMode: String,
         expandedCinemas: Set<String>,
-        expandedMovies: Set<String>
+        expandedMovies: Set<String>,
+        openAppIntent: Intent
     ) {
         Column(
             modifier = GlanceModifier
@@ -129,7 +134,7 @@ class CinemaWidget : GlanceAppWidget() {
                 Column(
                     modifier = GlanceModifier
                         .defaultWeight()
-                        .clickable(androidx.glance.appwidget.action.actionStartActivity<com.cinewidget.MainActivity>())
+                        .clickable(androidx.glance.appwidget.action.actionStartActivity(openAppIntent))
                 ) {
                     Text(
                         text = "Cartelera ↗",
@@ -159,7 +164,7 @@ class CinemaWidget : GlanceAppWidget() {
                     ),
                     modifier = GlanceModifier
                         .background(cardBgColor)
-                        .clickable(androidx.glance.appwidget.action.actionStartActivity<com.cinewidget.MainActivity>())
+                        .clickable(androidx.glance.appwidget.action.actionStartActivity(openAppIntent))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
 
