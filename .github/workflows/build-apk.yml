@@ -26,23 +26,44 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build Debug APK with Gradle
+      - name: Set up Android SDK & Build Tools
+        uses: android-actions/setup-android@v3
+
+      - name: Build Release APK with Gradle
         working-directory: ./android
         run: |
           chmod +x gradlew 2>/dev/null || true
           if [ -f "gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace --no-daemon
+            ./gradlew assembleRelease --stacktrace --no-daemon
           else
-            gradle assembleDebug --stacktrace --no-daemon
+            gradle assembleRelease --stacktrace --no-daemon
           fi
 
-      - name: Rename APK for Release
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk cine-widget.apk
+      - name: Generate Release Keystore and Sign APK
+        run: |
+          # Generar keystore formal de Release (RSA 2048, 10000 dias validez)
+          keytool -genkeypair -v -keystore release.keystore \
+            -alias cinewidget \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "cinewidget123" -keypass "cinewidget123" \
+            -dname "CN=Cine Widget, OU=Mobile, O=CineWidget, L=Barranquilla, ST=Atlantico, C=CO"
 
-      - name: Upload Debug APK Artifact
+          # Firmar APK con apksigner (v1, v2, v3 schemes)
+          UNSIGNED_APK=$(find android/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            --ks release.keystore \
+            --ks-key-alias cinewidget \
+            --ks-pass pass:cinewidget123 \
+            --key-pass pass:cinewidget123 \
+            --out cine-widget.apk \
+            "$UNSIGNED_APK"
+
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose cine-widget.apk
+
+      - name: Upload Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cine-widget-debug-apk
+          name: cine-widget-apk
           path: cine-widget.apk
           retention-days: 7
 
@@ -55,6 +76,6 @@ jobs:
           git tag -d latest 2>/dev/null || true
           git push origin :refs/tags/latest 2>/dev/null || true
           gh release create latest cine-widget.apk \
-            --title "Cine Widget App (Latest APK)" \
-            --notes "Descarga directa de **cine-widget.apk** (sin archivo .zip). Instálalo directamente en tu teléfono Android." \
+            --title "Cine Widget App (Latest Signed APK)" \
+            --notes "Descarga directa de **cine-widget.apk** firmado formalmente para Android. Instálalo directamente en tu teléfono." \
             --latest
