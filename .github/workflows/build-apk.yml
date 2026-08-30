@@ -31,12 +31,14 @@ jobs:
 
       - name: Build Release APK with Gradle
         working-directory: ./android
+        env:
+          GRADLE_OPTS: "-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseG1GC -Dorg.gradle.daemon=false"
         run: |
           chmod +x gradlew 2>/dev/null || true
           if [ -f "gradlew" ]; then
-            ./gradlew assembleRelease --stacktrace --no-daemon
+            ./gradlew assembleRelease --stacktrace --no-daemon -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
           else
-            gradle assembleRelease --stacktrace --no-daemon
+            gradle assembleRelease --stacktrace --no-daemon -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
           fi
 
       - name: Generate Release Keystore and Sign APK
