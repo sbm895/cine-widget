@@ -56,9 +56,17 @@ class CinemaWidget : GlanceAppWidget() {
 
     // Modelos aplanados para LazyColumn (Flat List)
     sealed interface CinemaFeedItem {
-        data class CinemaHeader(val name: String, val location: String, val accent: ColorProvider) : CinemaFeedItem
+        data class CinemaHeader(
+            val cinemaId: String,
+            val name: String,
+            val location: String,
+            val accent: ColorProvider,
+            val isExpanded: Boolean,
+            val movieCount: Int
+        ) : CinemaFeedItem
         data class MovieCardItem(val movie: Movie, val brandAccent: ColorProvider, val posterUrl: String?) : CinemaFeedItem
         data class EmptyCinemaMessage(val message: String) : CinemaFeedItem
+        data class SafetyLimitMessage(val message: String) : CinemaFeedItem
     }
 
     sealed interface MovieFeedItem {
@@ -66,12 +74,14 @@ class CinemaWidget : GlanceAppWidget() {
         data class CinemaSubHeaderItem(val cinemaName: String, val location: String, val accent: ColorProvider) : MovieFeedItem
         data class ShowtimesRowItem(val showtimes: List<Showtime>) : MovieFeedItem
         object DividerItem : MovieFeedItem
+        data class SafetyLimitMessage(val message: String) : MovieFeedItem
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
         val isSyncing = prefs.getBoolean("is_syncing", false)
         val viewMode = prefs.getString("view_mode", "by_cinema") ?: "by_cinema" // "by_cinema" | "by_movie"
+        val expandedCinemas = prefs.getStringSet("expanded_cinemas", null) ?: setOf("cinemark-gran-plaza-del-sol")
         val cachedJson = prefs.getString("last_schedule_json", null)
         val schedule = if (cachedJson != null) {
             try {
@@ -133,7 +143,7 @@ class CinemaWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                WidgetContent(schedule, isSyncing, viewMode, posterBitmaps)
+                WidgetContent(schedule, isSyncing, viewMode, expandedCinemas, posterBitmaps)
             }
         }
     }
@@ -143,6 +153,7 @@ class CinemaWidget : GlanceAppWidget() {
         schedule: UnifiedScheduleResponse?,
         isSyncing: Boolean,
         viewMode: String,
+        expandedCinemas: Set<String>,
         posterBitmaps: Map<String, Bitmap>
     ) {
         Column(
@@ -288,7 +299,7 @@ class CinemaWidget : GlanceAppWidget() {
                 }
             } else {
                 if (viewMode == "by_movie") {
-                    // Modo Por Película: Lista completamente aplanada (Flat Feed)
+                    // Modo Por Película: Lista completamente aplanada con tope de 18 películas
                     val flatMovieItems = buildFlatMovieList(schedule.cinemas)
                     LazyColumn(
                         modifier = GlanceModifier.fillMaxSize()
@@ -309,12 +320,25 @@ class CinemaWidget : GlanceAppWidget() {
                                 is MovieFeedItem.DividerItem -> {
                                     Spacer(modifier = GlanceModifier.height(8.dp))
                                 }
+                                is MovieFeedItem.SafetyLimitMessage -> {
+                                    Text(
+                                        text = item.message,
+                                        style = TextStyle(
+                                            fontSize = 10.sp,
+                                            color = textTertiaryColor,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        modifier = GlanceModifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 } else {
-                    // Modo Por Cine: Lista completamente aplanada (Flat Feed)
-                    val flatItems = buildFlatCinemaList(schedule.cinemas)
+                    // Modo Por Cine: Acordeones interactivos con tope seguro de 18 películas
+                    val flatItems = buildFlatCinemaList(schedule.cinemas, expandedCinemas)
                     LazyColumn(
                         modifier = GlanceModifier.fillMaxSize()
                     ) {
@@ -342,6 +366,19 @@ class CinemaWidget : GlanceAppWidget() {
                                     )
                                     Spacer(modifier = GlanceModifier.height(6.dp))
                                 }
+                                is CinemaFeedItem.SafetyLimitMessage -> {
+                                    Text(
+                                        text = item.message,
+                                        style = TextStyle(
+                                            fontSize = 10.sp,
+                                            color = textTertiaryColor,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        modifier = GlanceModifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -350,18 +387,46 @@ class CinemaWidget : GlanceAppWidget() {
         }
     }
 
-    private fun buildFlatCinemaList(cinemas: List<CinemaSchedule>): List<CinemaFeedItem> {
+    private fun buildFlatCinemaList(
+        cinemas: List<CinemaSchedule>,
+        expandedCinemas: Set<String>
+    ): List<CinemaFeedItem> {
         val result = mutableListOf<CinemaFeedItem>()
+        var renderedMovieCount = 0
+        val maxMoviesLimit = 18
+
         cinemas.forEach { cinema ->
             val brandAccent = getCinemaAccent(cinema.cinemaName, cinema.cinemaId)
-            result.add(CinemaFeedItem.CinemaHeader(cinema.cinemaName, cinema.location, brandAccent))
+            val isExpanded = expandedCinemas.contains(cinema.cinemaId)
 
-            if (cinema.status == "error" || cinema.movies.isEmpty()) {
-                val msg = cinema.errorMessage ?: "Funciones no disponibles temporalmente."
-                result.add(CinemaFeedItem.EmptyCinemaMessage(msg))
-            } else {
-                cinema.movies.forEach { movie ->
-                    result.add(CinemaFeedItem.MovieCardItem(movie, brandAccent, movie.coverImage))
+            result.add(
+                CinemaFeedItem.CinemaHeader(
+                    cinemaId = cinema.cinemaId,
+                    name = cinema.cinemaName,
+                    location = cinema.location,
+                    accent = brandAccent,
+                    isExpanded = isExpanded,
+                    movieCount = cinema.movies.size
+                )
+            )
+
+            if (isExpanded) {
+                if (cinema.status == "error" || cinema.movies.isEmpty()) {
+                    val msg = cinema.errorMessage ?: "Funciones no disponibles temporalmente."
+                    result.add(CinemaFeedItem.EmptyCinemaMessage(msg))
+                } else {
+                    for (movie in cinema.movies) {
+                        if (renderedMovieCount >= maxMoviesLimit) {
+                            result.add(
+                                CinemaFeedItem.SafetyLimitMessage(
+                                    "⚡ Mostrando 18 películas activas. Colapsa un cine para explorar los demás con fluidez."
+                                )
+                            )
+                            return result
+                        }
+                        result.add(CinemaFeedItem.MovieCardItem(movie, brandAccent, movie.coverImage))
+                        renderedMovieCount++
+                    }
                 }
             }
         }
@@ -371,8 +436,18 @@ class CinemaWidget : GlanceAppWidget() {
     private fun buildFlatMovieList(cinemas: List<CinemaSchedule>): List<MovieFeedItem> {
         val groupedMovies = groupScheduleByMovie(cinemas)
         val result = mutableListOf<MovieFeedItem>()
+        val maxMoviesLimit = 18
+        var count = 0
 
-        groupedMovies.forEach { group ->
+        for (group in groupedMovies) {
+            if (count >= maxMoviesLimit) {
+                result.add(
+                    MovieFeedItem.SafetyLimitMessage(
+                        "⚡ Mostrando las 18 películas principales en cartelera."
+                    )
+                )
+                break
+            }
             result.add(MovieFeedItem.MovieHeaderItem(group, group.coverImage))
             group.cinemaGroups.forEach { cinemaGroup ->
                 result.add(MovieFeedItem.CinemaSubHeaderItem(cinemaGroup.cinemaName, cinemaGroup.location, cinemaGroup.accent))
@@ -382,6 +457,7 @@ class CinemaWidget : GlanceAppWidget() {
                 }
             }
             result.add(MovieFeedItem.DividerItem)
+            count++
         }
         return result
     }
@@ -398,20 +474,27 @@ class CinemaWidget : GlanceAppWidget() {
 
     @Composable
     private fun CinemaHeaderRow(header: CinemaFeedItem.CinemaHeader) {
+        val chevron = if (header.isExpanded) "▼" else "▶"
+
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 4.dp),
+                .background(cardBgColor)
+                .clickable(
+                    actionRunCallback<ToggleCinemaAccordionCallback>(
+                        ToggleCinemaAccordionCallback.createParameters(header.cinemaId)
+                    )
+                )
+                .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "•",
+                text = "$chevron  ",
                 style = TextStyle(
-                    fontSize = 14.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = header.accent
-                ),
-                modifier = GlanceModifier.padding(end = 4.dp)
+                )
             )
 
             Text(
@@ -429,8 +512,23 @@ class CinemaWidget : GlanceAppWidget() {
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Normal,
                     color = textTertiaryColor
-                )
+                ),
+                modifier = GlanceModifier.defaultWeight()
             )
+
+            if (header.movieCount > 0) {
+                Text(
+                    text = "${header.movieCount} pelis",
+                    style = TextStyle(
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textTertiaryColor
+                    ),
+                    modifier = GlanceModifier
+                        .background(chipBgColor)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
         }
     }
 

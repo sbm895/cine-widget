@@ -360,7 +360,7 @@ fun AppScreen(context: Context) {
                 } else {
                     val currentCinemas = schedule!!.cinemas
                     if (viewMode == "by_movie") {
-                        val grouped = groupScheduleByMovieApp(currentCinemas)
+                        val grouped = groupScheduleByMovieApp(currentCinemas).take(18)
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             items(grouped) { movieGroup ->
                                 AppMovieGroupCard(movieGroup, context)
@@ -368,40 +368,107 @@ fun AppScreen(context: Context) {
                             }
                         }
                     } else {
+                        var expandedCinemasApp by remember {
+                            mutableStateOf(setOf("cinemark-gran-plaza-del-sol"))
+                        }
+
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            var totalRendered = 0
+                            val maxLimit = 18
+
                             currentCinemas.forEach { cinema ->
                                 val accent = getCinemaAccentApp(cinema.cinemaName, cinema.cinemaId)
+                                val isExpanded = expandedCinemasApp.contains(cinema.cinemaId)
+
                                 item {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(top = 8.dp, bottom = 4.dp),
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(CardBg)
+                                            .clickable {
+                                                expandedCinemasApp = if (isExpanded) {
+                                                    expandedCinemasApp - cinema.cinemaId
+                                                } else {
+                                                    expandedCinemasApp + cinema.cinemaId
+                                                }
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 7.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("•", color = accent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(cinema.cinemaName.uppercase(), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        Text("  ${cinema.location}", color = TextTertiary, fontSize = 10.sp)
+                                        Text(
+                                            text = if (isExpanded) "▼  " else "▶  ",
+                                            color = accent,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = cinema.cinemaName.uppercase(),
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "  ${cinema.location}",
+                                            color = TextTertiary,
+                                            fontSize = 10.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (cinema.movies.isNotEmpty()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(ChipBg)
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${cinema.movies.size} pelis",
+                                                    color = TextTertiary,
+                                                    fontSize = 9.sp
+                                                )
+                                            }
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
                                 }
 
-                                if (cinema.status == "error" || cinema.movies.isEmpty()) {
-                                    item {
-                                        Text(
-                                            text = cinema.errorMessage ?: "Sin funciones disponibles.",
-                                            color = TextSecondary,
-                                            fontSize = 11.sp,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(CardBg)
-                                                .padding(10.dp)
-                                        )
-                                    }
-                                } else {
-                                    items(cinema.movies) { movie ->
-                                        AppMovieCard(movie, accent, context)
-                                        Spacer(modifier = Modifier.height(6.dp))
+                                if (isExpanded) {
+                                    if (cinema.status == "error" || cinema.movies.isEmpty()) {
+                                        item {
+                                            Text(
+                                                text = cinema.errorMessage ?: "Sin funciones disponibles.",
+                                                color = TextSecondary,
+                                                fontSize = 11.sp,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(CardBg)
+                                                    .padding(10.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                        }
+                                    } else {
+                                        for (movie in cinema.movies) {
+                                            if (totalRendered >= maxLimit) {
+                                                item {
+                                                    Text(
+                                                        text = "⚡ Mostrando 18 películas activas. Colapsa un cine para explorar los demás con fluidez.",
+                                                        color = TextTertiary,
+                                                        fontSize = 10.sp,
+                                                        textAlign = TextAlign.Center,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 8.dp)
+                                                    )
+                                                }
+                                                break
+                                            }
+                                            item {
+                                                AppMovieCard(movie, accent, context)
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                            }
+                                            totalRendered++
+                                        }
                                     }
                                 }
                             }
