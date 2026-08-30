@@ -29,6 +29,7 @@ import androidx.glance.unit.ColorProvider
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.size.Scale
+import com.cinewidget.R
 import com.cinewidget.data.model.CinemaSchedule
 import com.cinewidget.data.model.Movie
 import com.cinewidget.data.model.Showtime
@@ -403,7 +404,7 @@ class CinemaWidget : GlanceAppWidget() {
                 .padding(10.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Columna 1 (Izquierda): Póster de la película (Bitmap real o Placeholder)
+            // Columna 1 (Izquierda): Póster de la película (Bitmap real o Placeholder gatito)
             Box(
                 modifier = GlanceModifier
                     .width(44.dp)
@@ -419,14 +420,10 @@ class CinemaWidget : GlanceAppWidget() {
                         modifier = GlanceModifier.fillMaxSize()
                     )
                 } else {
-                    Text(
-                        text = "CINE",
-                        style = TextStyle(
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textTertiaryColor,
-                            textAlign = TextAlign.Center
-                        )
+                    Image(
+                        provider = ImageProvider(R.drawable.placeholder_cat),
+                        contentDescription = "Sin póster",
+                        modifier = GlanceModifier.fillMaxSize()
                     )
                 }
             }
@@ -560,7 +557,7 @@ class CinemaWidget : GlanceAppWidget() {
                 .padding(10.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Póster a la izquierda
+            // Póster a la izquierda (Real o Placeholder gatito)
             Box(
                 modifier = GlanceModifier
                     .width(44.dp)
@@ -576,14 +573,10 @@ class CinemaWidget : GlanceAppWidget() {
                         modifier = GlanceModifier.fillMaxSize()
                     )
                 } else {
-                    Text(
-                        text = "CINE",
-                        style = TextStyle(
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textTertiaryColor,
-                            textAlign = TextAlign.Center
-                        )
+                    Image(
+                        provider = ImageProvider(R.drawable.placeholder_cat),
+                        contentDescription = "Sin póster",
+                        modifier = GlanceModifier.fillMaxSize()
                     )
                 }
             }
