@@ -25,7 +25,7 @@ class ToggleCinemaAccordionCallback : ActionCallback {
         }
 
         prefs.edit().putStringSet("expanded_cinemas", currentExpanded).commit()
-        CinemaWidget().updateAll(context)
+        CinemaWidget().update(context, glanceId)
     }
 
     companion object {

@@ -152,90 +152,142 @@ fun AppScreen(context: Context) {
         }
     }
 
+    var showSettingsDialog by remember { mutableStateOf(false) }
+
+    // Diálogo Modal de Configuración
+    if (showSettingsDialog) {
+        var tempUrl by remember { mutableStateOf(backendUrl) }
+
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            containerColor = CardBg,
+            title = {
+                Text("⚙️ Configuración de API", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            },
+            text = {
+                Column {
+                    Text(
+                        "Ingresa la URL base de tu backend (/api/movies):",
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = tempUrl,
+                        onValueChange = { tempUrl = it },
+                        placeholder = { Text("https://tu-api.a.run.app") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = CinecoAccent,
+                            unfocusedBorderColor = TextTertiary,
+                            focusedLabelColor = TextPrimary,
+                            unfocusedLabelColor = TextSecondary
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        backendUrl = tempUrl.trim()
+                        prefs.edit().putString("backend_url", backendUrl).commit()
+                        showSettingsDialog = false
+                        doSync(forceRefresh = false)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CinecoAccent)
+                ) {
+                    Text("Guardar y Sincronizar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettingsDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Encabezado y configuración
-        Text(
-            text = "🎬 Cine Widget",
-            style = MaterialTheme.typography.titleLarge,
-            color = TextPrimary,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = backendUrl,
-            onValueChange = { backendUrl = it },
-            label = { Text("URL de API (/api/movies)") },
-            placeholder = { Text("https://tu-api.a.run.app") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                focusedBorderColor = CinecoAccent,
-                unfocusedBorderColor = TextTertiary,
-                focusedLabelColor = TextPrimary,
-                unfocusedLabelColor = TextSecondary
-            )
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Dos botones de sincronización separados
+        // Barra Superior Principal: Título, Estado y Botón de Ajustes
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Botón 1: Rápido (Caché SWR - 1 ms)
-            Button(
-                onClick = { if (!isSyncing) doSync(forceRefresh = false) },
-                enabled = !isSyncing,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isSyncing) TextTertiary else CinecoAccent
+            Column {
+                Text(
+                    text = "🎬 Cartelera de Cine",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold
                 )
-            ) {
-                if (isSyncing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("⚡ Rápido (1 ms)", fontSize = 12.sp)
-                }
+                Text(
+                    text = schedule?.date ?: "Barranquilla y Soledad",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
             }
 
-            // Botón 2: Forzar Scraping en Vivo (refresh = true)
-            OutlinedButton(
-                onClick = { if (!isSyncing) doSync(forceRefresh = true) },
-                enabled = !isSyncing,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = RoyalAccent
-                )
-            ) {
-                Text("🔄 Forzar En Vivo", fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Botón de sincronización rápida
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSyncing) ChipBg else CardBg)
+                        .clickable(enabled = !isSyncing) { doSync(forceRefresh = false) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = CinecoAccent,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "🔄 Actualizar",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Botón de Ajustes (Abre el Modal)
+                IconButton(
+                    onClick = { showSettingsDialog = true },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardBg)
+                        .size(36.dp)
+                ) {
+                    Text("⚙️", fontSize = 16.sp)
+                }
             }
         }
 
         if (syncError != null) {
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "⚠️ Error: $syncError",
+                text = "⚠️ $syncError",
                 color = CinemarkAccent,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 4.dp)
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Contenedor de Vista Previa del Widget
+        // Contenedor Principal de Cartelera
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -248,45 +300,6 @@ fun AppScreen(context: Context) {
                     .fillMaxSize()
                     .padding(14.dp)
             ) {
-                // Header de la Vista Previa
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Vista Previa del Widget",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = schedule?.date ?: "Barranquilla y Soledad",
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-                    }
-
-                    // Botón actualizar simulado
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (isSyncing) ChipBg else CardBg)
-                            .clickable(enabled = !isSyncing) { doSync() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (isSyncing) "Sincronizando..." else "Actualizar",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isSyncing) TextTertiary else TextSecondary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
                 // Selector de modo Por Cine / Por Película
                 Row(
                     modifier = Modifier

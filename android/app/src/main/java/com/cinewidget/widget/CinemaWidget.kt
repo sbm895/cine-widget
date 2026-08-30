@@ -99,22 +99,9 @@ class CinemaWidget : GlanceAppWidget() {
             null
         }
 
-        // Obtener bitmaps pre-cacheados localmente en 0 ms (sin llamadas de red bloqueantes)
-        val posterBitmaps = mutableMapOf<String, Bitmap>()
-        if (schedule != null) {
-            schedule.cinemas.flatMap { it.movies }.take(20).forEach { movie ->
-                val url = movie.coverImage
-                if (!url.isNullOrBlank() && !posterBitmaps.containsKey(url)) {
-                    com.cinewidget.util.WidgetImageCache.getCachedBitmap(context, url)?.let { bitmap ->
-                        posterBitmaps[url] = bitmap
-                    }
-                }
-            }
-        }
-
         provideContent {
             GlanceTheme {
-                WidgetContent(schedule, isSyncing, viewMode, expandedCinemas, expandedMovies, posterBitmaps)
+                WidgetContent(schedule, isSyncing, viewMode, expandedCinemas, expandedMovies)
             }
         }
     }
@@ -125,8 +112,7 @@ class CinemaWidget : GlanceAppWidget() {
         isSyncing: Boolean,
         viewMode: String,
         expandedCinemas: Set<String>,
-        expandedMovies: Set<String>,
-        posterBitmaps: Map<String, Bitmap>
+        expandedMovies: Set<String>
     ) {
         Column(
             modifier = GlanceModifier
@@ -279,7 +265,7 @@ class CinemaWidget : GlanceAppWidget() {
                         items(flatMovieItems) { item ->
                             when (item) {
                                 is MovieFeedItem.MovieHeaderItem -> {
-                                    MovieHeaderCard(item.movieGroup, item.isExpanded, item.cinemaCount, posterBitmaps[item.posterUrl])
+                                    MovieHeaderCard(item.movieGroup, item.isExpanded, item.cinemaCount)
                                     Spacer(modifier = GlanceModifier.height(4.dp))
                                 }
                                 is MovieFeedItem.CinemaSubHeaderItem -> {
@@ -321,7 +307,7 @@ class CinemaWidget : GlanceAppWidget() {
                                     Spacer(modifier = GlanceModifier.height(4.dp))
                                 }
                                 is CinemaFeedItem.MovieCardItem -> {
-                                    MovieCard(item.movie, item.brandAccent, posterBitmaps[item.posterUrl])
+                                    MovieCard(item.movie, item.brandAccent)
                                     Spacer(modifier = GlanceModifier.height(6.dp))
                                 }
                                 is CinemaFeedItem.EmptyCinemaMessage -> {
@@ -523,7 +509,7 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun MovieCard(movie: Movie, brandAccent: ColorProvider, posterBitmap: Bitmap?) {
+    private fun MovieCard(movie: Movie, brandAccent: ColorProvider) {
         val metadata = buildList {
             movie.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
             movie.durationMinutes?.let { add("${it} min") }
@@ -534,40 +520,20 @@ class CinemaWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .background(cardBgColor)
-                .padding(10.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Columna 1 (Izquierda): Póster de la película (Bitmap real o Box sobrio)
+            // Indicador de barra vertical con el acento del cine
             Box(
                 modifier = GlanceModifier
-                    .width(44.dp)
-                    .height(66.dp)
-                    .background(chipBgColor)
-                    .padding(2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (posterBitmap != null) {
-                    Image(
-                        provider = ImageProvider(posterBitmap),
-                        contentDescription = movie.title,
-                        modifier = GlanceModifier.fillMaxSize()
-                    )
-                } else {
-                    Text(
-                        text = "CINE",
-                        style = TextStyle(
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textTertiaryColor,
-                            textAlign = TextAlign.Center
-                        )
-                    )
-                }
-            }
+                    .width(3.dp)
+                    .height(36.dp)
+                    .background(brandAccent)
+            ) {}
 
-            Spacer(modifier = GlanceModifier.width(10.dp))
+            Spacer(modifier = GlanceModifier.width(8.dp))
 
-            // Columna 2 (Derecha): Información y Grid de Horarios
+            // Información y Grid de Horarios
             Column(
                 modifier = GlanceModifier
                     .defaultWeight()
@@ -681,8 +647,7 @@ class CinemaWidget : GlanceAppWidget() {
     private fun MovieHeaderCard(
         movieGroup: MovieGroup,
         isExpanded: Boolean,
-        cinemaCount: Int,
-        posterBitmap: Bitmap?
+        cinemaCount: Int
     ) {
         val metadata = buildList {
             movieGroup.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
@@ -702,7 +667,7 @@ class CinemaWidget : GlanceAppWidget() {
                         ToggleMovieAccordionCallback.createParameters(normalizedKey)
                     )
                 )
-                .padding(8.dp),
+                .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -713,35 +678,6 @@ class CinemaWidget : GlanceAppWidget() {
                     color = cinecoAccent
                 )
             )
-
-            Box(
-                modifier = GlanceModifier
-                    .width(36.dp)
-                    .height(54.dp)
-                    .background(chipBgColor)
-                    .padding(2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (posterBitmap != null) {
-                    Image(
-                        provider = ImageProvider(posterBitmap),
-                        contentDescription = movieGroup.title,
-                        modifier = GlanceModifier.fillMaxSize()
-                    )
-                } else {
-                    Text(
-                        text = "CINE",
-                        style = TextStyle(
-                            fontSize = 7.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textTertiaryColor,
-                            textAlign = TextAlign.Center
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = GlanceModifier.width(8.dp))
 
             Column(
                 modifier = GlanceModifier.defaultWeight()

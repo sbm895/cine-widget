@@ -25,7 +25,7 @@ class ToggleMovieAccordionCallback : ActionCallback {
         }
 
         prefs.edit().putStringSet("expanded_movies", currentExpanded).commit()
-        CinemaWidget().updateAll(context)
+        CinemaWidget().update(context, glanceId)
     }
 
     companion object {

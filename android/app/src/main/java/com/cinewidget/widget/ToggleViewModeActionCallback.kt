@@ -17,7 +17,7 @@ class ToggleViewModeActionCallback : ActionCallback {
         if (!targetMode.isNullOrBlank()) {
             val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
             prefs.edit().putString("view_mode", targetMode).commit()
-            CinemaWidget().updateAll(context)
+            CinemaWidget().update(context, glanceId)
         }
     }
 
