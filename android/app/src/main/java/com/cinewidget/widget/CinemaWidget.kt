@@ -120,17 +120,19 @@ class CinemaWidget : GlanceAppWidget() {
                 .background(widgetBgColor)
                 .padding(12.dp)
         ) {
-            // Header con Título y Botón Actualizar
+            // Header con Título y Botones (Abrir App + Actualizar)
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
-                    modifier = GlanceModifier.defaultWeight()
+                    modifier = GlanceModifier
+                        .defaultWeight()
+                        .clickable(androidx.glance.appwidget.action.actionStartActivity<com.cinewidget.MainActivity>())
                 ) {
                     Text(
-                        text = "Cartelera",
+                        text = "Cartelera ↗",
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -147,6 +149,23 @@ class CinemaWidget : GlanceAppWidget() {
                     )
                 }
 
+                // Botón "Abrir App"
+                Text(
+                    text = "App",
+                    style = TextStyle(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = cinecoAccent
+                    ),
+                    modifier = GlanceModifier
+                        .background(cardBgColor)
+                        .clickable(androidx.glance.appwidget.action.actionStartActivity<com.cinewidget.MainActivity>())
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+
+                Spacer(modifier = GlanceModifier.width(6.dp))
+
+                // Botón "Actualizar"
                 val refreshText = if (isSyncing) "Sincronizando..." else "Actualizar"
                 val refreshModifier = if (!isSyncing) {
                     GlanceModifier
