@@ -22,13 +22,38 @@
 
         <receiver
             android:name=".widget.CinemaWidgetReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/cinema_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.SingleCinemaWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_single_cinema_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/single_cinema_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.UpcomingWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_upcoming_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/upcoming_widget_info" />
         </receiver>
 
     </application>

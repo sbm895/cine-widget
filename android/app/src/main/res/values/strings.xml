@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">Cine Widget</string>
-    <string name="widget_description">Horarios y asientos de Cinemark y Cine Colombia</string>
+    <string name="widget_description">Cartelera esencial y horarios de cines</string>
+    <string name="widget_single_cinema_name">Cine Widget - Por Teatro</string>
+    <string name="widget_single_cinema_description">Cartelera de un cine específico con selector rápido</string>
+    <string name="widget_upcoming_name">Cine Widget - Próximas Funciones</string>
+    <string name="widget_upcoming_description">Funciones más cercanas del día ordenadas por hora</string>
 </resources>

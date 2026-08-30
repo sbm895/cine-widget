@@ -39,7 +39,10 @@ class ScheduleUpdateWorker(
             // Pre-descargar imágenes en segundo plano a la caché local sin bloquear la UI del widget
             com.cinewidget.util.WidgetImageCache.prefetchPosters(context, response)
 
+            // Actualizar todos los widgets disponibles de la app
             CinemaWidget().updateAll(context)
+            SingleCinemaWidget().updateAll(context)
+            UpcomingWidget().updateAll(context)
             Result.success()
         } catch (e: Exception) {
             e.printStackTrace()
