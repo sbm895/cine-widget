@@ -69,14 +69,14 @@ fun ConfigScreen(context: Context) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "🎬 Cine Widget Config",
+            text = "Cine Widget - Configuracion",
             style = MaterialTheme.typography.headlineMedium
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Ingresa la URL pública de tu API en Google Cloud Run / Render / Túnel Local:",
+            text = "Ingresa la URL publica de tu API en Google Cloud Run / Render / Tunel Local:",
             style = MaterialTheme.typography.bodyMedium
         )
 
@@ -95,10 +95,10 @@ fun ConfigScreen(context: Context) {
         Button(
             onClick = {
                 prefs.edit().putString("backend_url", backendUrl.trim()).apply()
-                // Disparar sincronización manual
+                // Disparar sincronizacion manual
                 val request = OneTimeWorkRequestBuilder<ScheduleUpdateWorker>().build()
                 WorkManager.getInstance(context).enqueue(request)
-                Toast.makeText(context, "URL guardada y sincronización iniciada", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "URL guardada y sincronizacion iniciada", Toast.LENGTH_SHORT).show()
             },
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -113,12 +113,12 @@ fun ConfigScreen(context: Context) {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "ℹ️ Instrucciones:",
+                    text = "Instrucciones:",
                     style = MaterialTheme.typography.titleSmall
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "1. Añade el widget de Cartelera a tu pantalla de inicio.\n2. Al tocar una función se abrirá la compra en el navegador.\n3. Los datos se actualizan automáticamente en segundo plano.",
+                    text = "1. Anade el widget de Cartelera a tu pantalla de inicio.\n2. Al tocar una funcion se abrira la compra en el navegador.\n3. Los datos se actualizan automaticamente en segundo plano.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
