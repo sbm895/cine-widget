@@ -1,4 +1,4 @@
-﻿package com.cinewidget.data.api
+package com.cinewidget.data.api
 
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -7,22 +7,21 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // Configura aquí la URL de tu backend desplegado en Google Cloud o local
-    // Para emulador local: "http://10.0.2.2:8000/"
-    // Para Cloud Run / App Engine: "https://tu-servicio-uc.a.run.app/"
     var baseUrl: String = "https://tu-servicio-en-google-cloud.a.run.app/"
 
     private val loggingInterceptor by lazy {
         HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.BASIC
         }
     }
 
     private val okHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
             .build()
     }
 
@@ -31,9 +30,16 @@ object RetrofitClient {
     }
 
     fun createService(url: String): CinemaApiService {
-        val sanitizedUrl = if (url.endsWith("/")) url else "$url/"
+        var cleanUrl = url.trim()
+        if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+            cleanUrl = "https://$cleanUrl"
+        }
+        if (!cleanUrl.endsWith("/")) {
+            cleanUrl = "$cleanUrl/"
+        }
+
         return Retrofit.Builder()
-            .baseUrl(sanitizedUrl)
+            .baseUrl(cleanUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
