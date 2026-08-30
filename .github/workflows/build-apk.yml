@@ -1,4 +1,4 @@
-﻿name: Build Android APK
+name: Build Android APK
 
 on:
   push:
@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -31,10 +34,26 @@ jobs:
             gradle assembleDebug --stacktrace --no-daemon
           fi
 
+      - name: Rename APK for Release
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk cine-widget.apk
+
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: cine-widget-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: cine-widget.apk
           retention-days: 7
+
+      - name: Publish Direct APK to GitHub Release
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Cine Widget App (Latest APK)"
+          body: "Descarga directa de **cine-widget.apk** (sin archivo .zip). Instálalo directamente en tu teléfono Android."
+          files: cine-widget.apk
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
