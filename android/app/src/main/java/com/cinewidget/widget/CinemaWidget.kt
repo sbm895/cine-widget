@@ -1,4 +1,4 @@
-﻿package com.cinewidget.widget
+package com.cinewidget.widget
 
 import android.content.ComponentName
 import android.content.Context
@@ -68,10 +68,13 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
-        val isSyncing = prefs.getBoolean("is_syncing", false)
-        val cachedJson = prefs.getString("last_schedule_json", null)
-        val schedule = if (cachedJson != null) {
+        val prefs = try {
+            context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
+        } catch (e: Exception) { null }
+
+        val isSyncing = prefs?.getBoolean("is_syncing", false) ?: false
+        val cachedJson = prefs?.getString("last_schedule_json", null)
+        val schedule = if (!cachedJson.isNullOrBlank()) {
             try { Gson().fromJson(cachedJson, UnifiedScheduleResponse::class.java) }
             catch (e: Exception) { null }
         } else { null }
@@ -145,13 +148,34 @@ class CinemaWidget : GlanceAppWidget() {
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
-                        .clickable(actionRunCallback<RefreshWidgetActionCallback>()),
+                        .clickable(actionStartActivity(ComponentName(context, MainActivity::class.java))),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = if (isSyncing) "Sincronizando cartelera..." else "Sin funciones cargadas.\nToca Actualizar o abre la app.",
-                        style = TextStyle(fontSize = 12.sp, textAlign = TextAlign.Center, color = textSecondaryColor)
-                    )
+                    Column(
+                        modifier = GlanceModifier.fillMaxWidth().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (isSyncing) "\u23F3 Sincronizando..." else "\uD83C\uDFAC Cartelera",
+                            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimaryColor, textAlign = TextAlign.Center)
+                        )
+                        Spacer(modifier = GlanceModifier.height(6.dp))
+                        Text(
+                            text = if (isSyncing) "Cargando funciones de hoy..." else "Abre la app para\nsincronizar la cartelera",
+                            style = TextStyle(fontSize = 11.sp, color = textSecondaryColor, textAlign = TextAlign.Center)
+                        )
+                        Spacer(modifier = GlanceModifier.height(10.dp))
+                        if (!isSyncing) {
+                            Text(
+                                text = "  Abrir app  ",
+                                style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = cinecoAccent),
+                                modifier = GlanceModifier
+                                    .background(cardBgColor)
+                                    .clickable(actionStartActivity(ComponentName(context, MainActivity::class.java)))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
             } else {
                 val flatItems = buildFlatMovieList(schedule.cinemas)

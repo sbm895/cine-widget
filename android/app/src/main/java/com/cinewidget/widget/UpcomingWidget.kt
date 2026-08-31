@@ -1,4 +1,4 @@
-﻿package com.cinewidget.widget
+package com.cinewidget.widget
 
 import android.content.ComponentName
 import android.content.Context
@@ -82,17 +82,14 @@ class UpcomingWidget : GlanceAppWidget() {
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val prefs = context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
-        val cachedJson = prefs.getString("last_schedule_json", null)
-        val schedule = if (cachedJson != null) {
-            try {
-                Gson().fromJson(cachedJson, UnifiedScheduleResponse::class.java)
-            } catch (e: Exception) {
-                null
-            }
-        } else {
-            null
-        }
+        val prefs = try {
+            context.getSharedPreferences("cine_widget_prefs", Context.MODE_PRIVATE)
+        } catch (e: Exception) { null }
+        val cachedJson = prefs?.getString("last_schedule_json", null)
+        val schedule = if (!cachedJson.isNullOrBlank()) {
+            try { Gson().fromJson(cachedJson, UnifiedScheduleResponse::class.java) }
+            catch (e: Exception) { null }
+        } else { null }
 
         provideContent {
             GlanceTheme {
@@ -146,14 +143,29 @@ class UpcomingWidget : GlanceAppWidget() {
                         .clickable(actionStartActivity(ComponentName(context, MainActivity::class.java))),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Sin cartelera cargada.\nToca para sincronizar en la app.",
-                        style = TextStyle(
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            color = textSecondaryColor
+                    Column(
+                        modifier = GlanceModifier.fillMaxWidth().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "\u23F0 Pr\u00f3ximas Funciones",
+                            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = textPrimaryColor, textAlign = TextAlign.Center)
                         )
-                    )
+                        Spacer(modifier = GlanceModifier.height(6.dp))
+                        Text(
+                            text = "Abre la app para\nsincronizar la cartelera",
+                            style = TextStyle(fontSize = 11.sp, color = textSecondaryColor, textAlign = TextAlign.Center)
+                        )
+                        Spacer(modifier = GlanceModifier.height(10.dp))
+                        Text(
+                            text = "  Abrir app  ",
+                            style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = cinecoAccent),
+                            modifier = GlanceModifier
+                                .background(cardBgColor)
+                                .clickable(actionStartActivity(ComponentName(context, MainActivity::class.java)))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
                 }
                 return@Column
             }
@@ -301,3 +313,4 @@ class UpcomingWidget : GlanceAppWidget() {
         }
     }
 }
+
