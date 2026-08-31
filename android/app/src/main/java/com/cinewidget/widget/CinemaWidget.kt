@@ -27,7 +27,6 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.cinewidget.MainActivity
 import com.cinewidget.data.model.CinemaSchedule
-import com.cinewidget.data.model.Movie
 import com.cinewidget.data.model.Showtime
 import com.cinewidget.data.model.UnifiedScheduleResponse
 import com.google.gson.Gson
@@ -46,15 +45,26 @@ class CinemaWidget : GlanceAppWidget() {
     private val cinecoAccent = ColorProvider(Color(0xFF1E88E5))
     private val royalAccent = ColorProvider(Color(0xFFE5A00D))
 
-    // Lista plana para el LazyColumn - sin estado de acordeones
-    sealed interface CinemaFeedItem {
-        data class CinemaHeader(
-            val cinemaName: String,
-            val location: String,
-            val accent: ColorProvider,
-            val movieCount: Int
-        ) : CinemaFeedItem
-        data class MovieRow(val movie: Movie, val accent: ColorProvider) : CinemaFeedItem
+    // Lista plana por pelicula
+    data class MovieGroup(
+        val title: String,
+        val rating: String?,
+        val durationMinutes: Int?,
+        val genre: String?,
+        val coverImage: String?
+    )
+
+    data class CinemaShowtimeGroup(
+        val cinemaName: String,
+        val location: String,
+        val accent: ColorProvider,
+        val showtimes: List<Showtime>
+    )
+
+    sealed interface MovieFeedItem {
+        data class MovieHeader(val group: MovieGroup, val cinemaCount: Int) : MovieFeedItem
+        data class CinemaRow(val csg: CinemaShowtimeGroup) : MovieFeedItem
+        data class ShowtimesRow(val showtimes: List<Showtime>) : MovieFeedItem
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -83,7 +93,7 @@ class CinemaWidget : GlanceAppWidget() {
                 .background(widgetBgColor)
                 .padding(12.dp)
         ) {
-            // Header: Título + Botón Actualizar
+            // Header: Titulo + App + Actualizar
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -95,11 +105,7 @@ class CinemaWidget : GlanceAppWidget() {
                 ) {
                     Text(
                         text = "Cartelera \u2197",
-                        style = TextStyle(
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textPrimaryColor
-                        )
+                        style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimaryColor)
                     )
                     Text(
                         text = if (schedule != null && schedule.date.isNotBlank()) schedule.date else "Barranquilla y Soledad",
@@ -125,14 +131,11 @@ class CinemaWidget : GlanceAppWidget() {
                         fontWeight = FontWeight.Medium,
                         color = if (isSyncing) textTertiaryColor else textSecondaryColor
                     ),
-                    modifier = if (!isSyncing) {
-                        GlanceModifier
-                            .background(cardBgColor)
-                            .clickable(actionRunCallback<RefreshWidgetActionCallback>())
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    } else {
-                        GlanceModifier.background(chipBgColor).padding(horizontal = 8.dp, vertical = 4.dp)
-                    }
+                    modifier = if (!isSyncing) GlanceModifier
+                        .background(cardBgColor)
+                        .clickable(actionRunCallback<RefreshWidgetActionCallback>())
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                    else GlanceModifier.background(chipBgColor).padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
 
@@ -147,25 +150,24 @@ class CinemaWidget : GlanceAppWidget() {
                 ) {
                     Text(
                         text = if (isSyncing) "Sincronizando cartelera..." else "Sin funciones cargadas.\nToca Actualizar o abre la app.",
-                        style = TextStyle(
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                            color = textSecondaryColor
-                        )
+                        style = TextStyle(fontSize = 12.sp, textAlign = TextAlign.Center, color = textSecondaryColor)
                     )
                 }
             } else {
-                val flatItems = buildFlatList(schedule.cinemas)
+                val flatItems = buildFlatMovieList(schedule.cinemas)
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                     items(flatItems) { item ->
                         when (item) {
-                            is CinemaFeedItem.CinemaHeader -> {
-                                CinemaHeaderRow(item)
-                                Spacer(modifier = GlanceModifier.height(4.dp))
+                            is MovieFeedItem.MovieHeader -> {
+                                MovieHeaderRow(item)
+                                Spacer(modifier = GlanceModifier.height(2.dp))
                             }
-                            is CinemaFeedItem.MovieRow -> {
-                                MovieCompactRow(item.movie, item.accent)
-                                Spacer(modifier = GlanceModifier.height(3.dp))
+                            is MovieFeedItem.CinemaRow -> {
+                                CinemaSubRow(item.csg)
+                            }
+                            is MovieFeedItem.ShowtimesRow -> {
+                                ShowtimesCompactRow(item.showtimes)
+                                Spacer(modifier = GlanceModifier.height(6.dp))
                             }
                         }
                     }
@@ -175,77 +177,65 @@ class CinemaWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun CinemaHeaderRow(item: CinemaFeedItem.CinemaHeader) {
+    private fun MovieHeaderRow(item: MovieFeedItem.MovieHeader) {
+        val metadata = buildList {
+            item.group.rating?.takeIf { it.isNotBlank() }?.let { add(it) }
+            item.group.durationMinutes?.let { add("${it} min") }
+            item.group.genre?.takeIf { it.isNotBlank() }?.let { add(it) }
+        }.joinToString(" \u00B7 ")
+
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .background(cardBgColor)
-                .clickable(actionRunCallback<RefreshWidgetActionCallback>())
                 .padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = GlanceModifier
-                    .width(4.dp)
-                    .height(28.dp)
-                    .background(item.accent)
-            ) {}
-
-            Spacer(modifier = GlanceModifier.width(8.dp))
-
             Column(modifier = GlanceModifier.defaultWeight()) {
                 Text(
-                    text = item.cinemaName.uppercase(),
-                    style = TextStyle(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimaryColor
-                    )
+                    text = item.group.title,
+                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimaryColor)
                 )
+                if (metadata.isNotEmpty()) {
+                    Text(text = metadata, style = TextStyle(fontSize = 9.sp, color = textTertiaryColor))
+                }
+            }
+            if (item.cinemaCount > 0) {
                 Text(
-                    text = item.location,
-                    style = TextStyle(fontSize = 9.sp, color = textTertiaryColor)
+                    text = "${item.cinemaCount} cines",
+                    style = TextStyle(fontSize = 9.sp, color = textTertiaryColor),
+                    modifier = GlanceModifier
+                        .background(chipBgColor)
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
                 )
             }
+        }
+    }
 
+    @Composable
+    private fun CinemaSubRow(csg: CinemaShowtimeGroup) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .padding(start = 10.dp, top = 3.dp, bottom = 1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = GlanceModifier.width(3.dp).height(14.dp).background(csg.accent)) {}
+            Spacer(modifier = GlanceModifier.width(6.dp))
             Text(
-                text = "${item.movieCount} pelis",
-                style = TextStyle(fontSize = 9.sp, color = textTertiaryColor),
-                modifier = GlanceModifier
-                    .background(chipBgColor)
-                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                text = "${csg.cinemaName} \u00B7 ${csg.location}",
+                style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold, color = textSecondaryColor)
             )
         }
     }
 
     @Composable
-    private fun MovieCompactRow(movie: Movie, accent: ColorProvider) {
-        // Tomamos máximo 4 horarios para mantener el payload bajo
-        val showtimes = movie.showtimes.take(4)
-
-        Column(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .padding(start = 12.dp, end = 0.dp, top = 0.dp, bottom = 0.dp)
-        ) {
-            // Título de la película
-            Text(
-                text = movie.title,
-                style = TextStyle(
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = textPrimaryColor
-                ),
-                modifier = GlanceModifier.padding(start = 4.dp, bottom = 2.dp)
-            )
-
-            // Chips de horarios en filas de 2
-            val chunked = showtimes.chunked(2)
+    private fun ShowtimesCompactRow(showtimes: List<Showtime>) {
+        val chunked = showtimes.take(4).chunked(2)
+        Column(modifier = GlanceModifier.fillMaxWidth().padding(start = 10.dp, bottom = 2.dp)) {
             chunked.forEach { rowItems ->
                 Row(
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .padding(bottom = 2.dp),
+                    modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     rowItems.forEach { showtime ->
@@ -253,9 +243,7 @@ class CinemaWidget : GlanceAppWidget() {
                             ShowtimeChip(showtime)
                         }
                     }
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = GlanceModifier.defaultWeight())
-                    }
+                    if (rowItems.size == 1) Spacer(modifier = GlanceModifier.defaultWeight())
                 }
             }
         }
@@ -268,63 +256,62 @@ class CinemaWidget : GlanceAppWidget() {
             showtime.seatsAvailable > 0 -> "${showtime.seatsAvailable}"
             else -> "Agotado"
         }
-
         val screenInfo = (showtime.screenTypes + listOfNotNull(showtime.language))
-            .filter { it.isNotBlank() }
-            .joinToString(" ")
-
+            .filter { it.isNotBlank() }.joinToString(" ")
         val chipText = buildString {
             append(showtime.time)
             if (screenInfo.isNotEmpty()) append(" $screenInfo")
             append(" $availabilityText")
         }
-
-        val actionModifier = if (!showtime.bookingUrl.isNullOrBlank()) {
-            GlanceModifier.clickable(
-                actionRunCallback<OpenBookingUrlActionCallback>(
-                    OpenBookingUrlActionCallback.createParameters(showtime.bookingUrl)
-                )
-            )
-        } else {
-            GlanceModifier.clickable(actionRunCallback<RefreshWidgetActionCallback>())
-        }
+        val actionMod = if (!showtime.bookingUrl.isNullOrBlank()) {
+            GlanceModifier.clickable(actionRunCallback<OpenBookingUrlActionCallback>(
+                OpenBookingUrlActionCallback.createParameters(showtime.bookingUrl)
+            ))
+        } else GlanceModifier.clickable(actionRunCallback<RefreshWidgetActionCallback>())
 
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .background(chipBgColor)
-                .then(actionModifier)
+                .then(actionMod)
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = chipText,
-                style = TextStyle(
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = textPrimaryColor,
-                    textAlign = TextAlign.Center
-                )
+                style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Medium, color = textPrimaryColor, textAlign = TextAlign.Center)
             )
         }
     }
 
-    private fun buildFlatList(cinemas: List<CinemaSchedule>): List<CinemaFeedItem> {
-        val result = mutableListOf<CinemaFeedItem>()
+    private fun buildFlatMovieList(cinemas: List<CinemaSchedule>): List<MovieFeedItem> {
+        // Agrupar por pelicula
+        val movieMap = linkedMapOf<String, Triple<MovieGroup, Int, List<Pair<CinemaShowtimeGroup, List<Showtime>>>>>()
+
         cinemas.forEach { cinema ->
             val accent = getCinemaAccent(cinema.cinemaName, cinema.cinemaId)
-            result.add(
-                CinemaFeedItem.CinemaHeader(
-                    cinemaName = cinema.cinemaName,
-                    location = cinema.location,
-                    accent = accent,
-                    movieCount = cinema.movies.size
-                )
-            )
-            // Máximo 5 películas por cine para mantener el payload Binder bajo
-            cinema.movies.take(5).forEach { movie ->
-                result.add(CinemaFeedItem.MovieRow(movie = movie, accent = accent))
+            cinema.movies.forEach { movie ->
+                val key = movie.title.trim().lowercase().replace(".", "").replace(":", "")
+                val csg = CinemaShowtimeGroup(cinema.cinemaName, cinema.location, accent, movie.showtimes)
+                val existing = movieMap[key]
+                if (existing != null) {
+                    val (group, _, list) = existing
+                    movieMap[key] = Triple(group, list.size + 1, list + (csg to movie.showtimes))
+                } else {
+                    val group = MovieGroup(movie.title, movie.rating, movie.durationMinutes, movie.genre, movie.coverImage)
+                    movieMap[key] = Triple(group, 1, listOf(csg to movie.showtimes))
+                }
+            }
+        }
+
+        val result = mutableListOf<MovieFeedItem>()
+        // Maximo 8 peliculas para mantener el payload bajo
+        movieMap.values.take(8).forEach { (group, cinemaCount, cinemaShowtimes) ->
+            result.add(MovieFeedItem.MovieHeader(group, cinemaCount))
+            cinemaShowtimes.forEach { (csg, showtimes) ->
+                result.add(MovieFeedItem.CinemaRow(csg))
+                result.add(MovieFeedItem.ShowtimesRow(showtimes))
             }
         }
         return result
