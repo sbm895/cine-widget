@@ -1,4 +1,4 @@
-﻿package com.cinewidget.widget
+package com.cinewidget.widget
 
 import android.content.ComponentName
 import android.content.Context
@@ -24,6 +24,7 @@ import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.getAppWidgetState
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.layout.*
